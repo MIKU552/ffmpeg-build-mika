@@ -642,6 +642,8 @@ echoDurationInSections $START_TIME
 echoSection "compilation finished successfully"
 echoDurationInSections $COMPILATION_START_TIME
 
+../relocate_dylib
+
 if [ $SKIP_BUNDLE = "NO" ]; then
     echoSection "bundle result"
     cd "$OUT_DIR/"
