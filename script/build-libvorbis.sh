@@ -48,6 +48,8 @@ cd "libvorbis-$VERSION/"
 checkStatus $? "change directory failed"
 
 # prepare build
+sed -i '' '205,207s/-force_cpusubtype_ALL //g' configure.ac
+sed -i '' '12843,12845s/-force_cpusubtype_ALL //g' configure
 ./configure --prefix="$TOOL_DIR" --enable-shared=no
 checkStatus $? "configuration failed"
 

@@ -89,7 +89,7 @@ if [ $DETECTED_OS = "Msys" ]; then
 fi
 
 # prepare build
-./configure --prefix="$TOOL_DIR" --with-pc-path="$TOOL_DIR/lib/pkgconfig" --with-internal-glib
+./configure --prefix="$TOOL_DIR" --with-pc-path="$TOOL_DIR/lib/pkgconfig" --with-internal-glib CFLAGS="-Wno-int-conversion"
 checkStatus $? "configuration of pkg-config failed"
 
 # build
