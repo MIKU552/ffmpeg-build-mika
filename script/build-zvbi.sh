@@ -38,14 +38,12 @@ cd "zvbi/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://sourceforge.net/projects/zapping/files/zvbi/$VERSION/zvbi-$VERSION.tar.bz2/download "zvbi.tar.bz2"
+download https://github.com/zapping-vbi/zvbi/archive/refs/tags/v$VERSION.tar.gz "zvbi.tar.gz"
 checkStatus $? "download failed"
 
 # unpack
-bunzip2 "zvbi.tar.bz2"
-checkStatus $? "unpack (bunzip2)"
-tar -xf "zvbi.tar"
-checkStatus $? "unpack (tar)"
+tar -zxf "zvbi.tar.gz"
+checkStatus $? "unpack failed"
 cd "zvbi-$VERSION/"
 checkStatus $? "change directory failed"
 
