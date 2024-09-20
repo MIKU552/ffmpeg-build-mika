@@ -38,7 +38,7 @@ cd "svt-av1/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$VERSION/SVT-AV1-v$VERSION.tar.gz "SVT-AV1.tar.gz"
+download https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/$VERSION/SVT-AV1-$VERSION.tar.gz "SVT-AV1.tar.gz"
 checkStatus $? "download failed"
 
 # unpack
@@ -50,7 +50,7 @@ mkdir "build"
 checkStatus $? "create directory failed"
 cd "build/"
 checkStatus $? "change directory failed"
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DBUILD_SHARED_LIBS=NO -DBUILD_APPS=NO ../SVT-AV1-v$VERSION
+cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DBUILD_SHARED_LIBS=NO -DBUILD_APPS=NO ../SVT-AV1-$VERSION
 checkStatus $? "configuration failed"
 
 # build
