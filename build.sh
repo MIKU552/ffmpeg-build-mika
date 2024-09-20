@@ -630,6 +630,8 @@ if [ $REQUIRES_NON_FREE = "YES" ]; then
     FFMPEG_LIB_FLAGS="--enable-nonfree $FFMPEG_LIB_FLAGS"
     echo "requires non-free build flag"
 fi
+# Enable GPL/LGPL v3
+FFMPEG_LIB_FLAGS="--enable-version3 $FFMPEG_LIB_FLAGS"
 
 START_TIME=$(currentTimeInSeconds)
 echoSection "compile ffmpeg"

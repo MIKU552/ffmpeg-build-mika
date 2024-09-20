@@ -60,13 +60,12 @@ cd "ffmpeg/"
 checkStatus $? "change directory failed"
 
 # prepare build
-EXTRA_VERSION="https://www.martin-riedl.de"
+EXTRA_VERSION="MiKayule-Group"
 FF_FLAGS="-L${TOOL_DIR}/lib -I${TOOL_DIR}/include"
 export LDFLAGS="$FF_FLAGS"
 export CFLAGS="$FF_FLAGS"
 # --pkg-config-flags="--static" is required to respect the Libs.private flags of the *.pc files
-./configure --prefix="$OUT_DIR" --pkg-config-flags="--static" --extra-version="$EXTRA_VERSION" \
-    --enable-gray --enable-libxml2 $FFMPEG_LIB_FLAGS
+./configure --prefix="$OUT_DIR" --pkg-config-flags="--static" --disable-static --enable-shared --enable-lto --extra-version="$EXTRA_VERSION" --enable-gray --enable-libxml2 --enable-videotoolbox --enable-audiotoolbox $FFMPEG_LIB_FLAGS
 checkStatus $? "configuration failed"
 
 # start build
