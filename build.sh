@@ -15,7 +15,7 @@
 # limitations under the License.
 
 # parse arguments
-SKIP_BUNDLE="NO"
+SKIP_BUNDLE="YES"
 SKIP_TEST="NO"
 SKIP_LIBBLURAY="NO"
 SKIP_SNAPPY="NO"
@@ -644,7 +644,7 @@ echoDurationInSections $COMPILATION_START_TIME
 
 if [ $SKIP_BUNDLE = "NO" ]; then
     echoSection "bundle result"
-    cd "$OUT_DIR/bin/"
+    cd "$OUT_DIR/"
     checkStatus $? "change directory"
     zip -9 -r "$WORKING_DIR/ffmpeg-success.zip" *
 fi
