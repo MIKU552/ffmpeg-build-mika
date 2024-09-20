@@ -1,12 +1,17 @@
 #!/bin/zsh
 exes=("ffmpeg" "ffplay" "ffprobe")
-dylibs=("libavdevice" "libavfilter" "libavformat" "libavcodec" "libpostproc" "libswresample" "libswscale" "libavutil")
-dir="./out"
+dylibs=("libavcodec.61" "libavdevice.61" "libavfilter.10" "libavformat.61" "libavutil.59" "libpostproc.58" "libswresample.5" "libswscale.8")
+dir="$(pwd)/out"
 
-for i in $exes
-do
-    for j in $dylibs
-    do
-        install_name_tool -change $dir/lib/$j.dylib @executable_path/../lib/$j.dylib $dir/bin/$i
-    done
-done
+for dylib ($dylibs) {
+    if [[ ! -f $dir/lib/$dylib.dylib ]] {
+        echo Please update this program.
+        exit 1
+    }
+}
+
+for exe ($exes) {
+    for dylib ($dylibs) {
+        install_name_tool -change $dir/lib/$dylib.dylib @executable_path/../lib/$dylib.dylib $dir/bin/$exe
+    }
+}
