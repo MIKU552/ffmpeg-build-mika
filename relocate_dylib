@@ -1,0 +1,12 @@
+#!/bin/zsh
+exes=("ffmpeg" "ffplay" "ffprobe")
+dylibs=("libavdevice" "libavfilter" "libavformat" "libavcodec" "libpostproc" "libswresample" "libswscale" "libavutil")
+dir="./out"
+
+for i in $exes
+do
+    for j in $dylibs
+    do
+        install_name_tool -change $dir/lib/$j.dylib @executable_path/../lib/$j.dylib $dir/bin/$i
+    done
+done
