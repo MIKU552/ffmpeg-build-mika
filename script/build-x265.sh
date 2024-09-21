@@ -100,7 +100,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     checkStatus $? "create directory failed"
     cd 10bit/
     checkStatus $? "change directory failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DFPROFILE_USE=ON -DCMAKE_C_FLAGS="-flto -fprofile-use=path=../10bit.profdata -fprofile-correction" -DCMAKE_CXX_FLAGS="-flto -fprofile-use=path=../10bit.profdata -fprofile-correction" -DCMAKE_EXE_LINKER_FLAGS="-flto" -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON ../source
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DFPROFILE_USE=ON -DCMAKE_C_FLAGS="-flto -fprofile-use=$SOURCE_DIR/x265/x265/10bit.profdata" -DCMAKE_CXX_FLAGS="-flto -fprofile-use=$SOURCE_DIR/x265/x265/10bit.profdata" -DCMAKE_EXE_LINKER_FLAGS="-flto" -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON ../source
     checkStatus $? "configuration 10 bit failed"
 
     # build 10 bit
@@ -115,7 +115,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     checkStatus $? "create directory failed"
     cd 12bit/
     checkStatus $? "change directory failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DFPROFILE_USE=ON -DCMAKE_C_FLAGS="-flto -fprofile-use=path=../12bit.profdata -fprofile-correction" -DCMAKE_CXX_FLAGS="-flto -fprofile-use=path=../12bit.profdata -fprofile-correction" -DCMAKE_EXE_LINKER_FLAGS="-flto" -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON ../source
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DFPROFILE_USE=ON -DCMAKE_C_FLAGS="-flto -fprofile-use=$SOURCE_DIR/x265/x265/12bit.profdata" -DCMAKE_CXX_FLAGS="-flto -fprofile-use=$SOURCE_DIR/x265/x265/12bit.profdata" -DCMAKE_EXE_LINKER_FLAGS="-flto" -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON ../source
     checkStatus $? "configuration 12 bit failed"
 
     # build 12 bit
@@ -130,7 +130,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     checkStatus $? "symlink creation of 10 bit library failed"
     ln -s 12bit/libx265.a libx265_12bit.a
     checkStatus $? "symlink creation of 12 bit library failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DFPROFILE_USE=ON -DCMAKE_C_FLAGS="-flto -fprofile-use=path=8bit.profdata -fprofile-correction" -DCMAKE_CXX_FLAGS="-flto -fprofile-use=path=8bit.profdata -fprofile-correction" -DCMAKE_EXE_LINKER_FLAGS="-flto" -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DFPROFILE_USE=ON -DCMAKE_C_FLAGS="-flto -fprofile-use=$SOURCE_DIR/x265/x265/8bit.profdata" -DCMAKE_CXX_FLAGS="-flto -fprofile-use=$SOURCE_DIR/x265/x265/8bit.profdata" -DCMAKE_EXE_LINKER_FLAGS="-flto" -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
         -DEXTRA_LINK_FLAGS=-L. -DEXTRA_LIB="x265_10bit.a;x265_12bit.a" -DLINKED_10BIT=ON -DLINKED_12BIT=ON source
     checkStatus $? "configuration 8 bit failed"
 
