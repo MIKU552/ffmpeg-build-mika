@@ -45,21 +45,8 @@ checkStatus $? "download failed"
 tar -zxf "libvmaf.tar.gz"
 checkStatus $? "unpack failed"
 
-# prepare python3 virtual environment
-python3 -m virtualenv .venv
-if [ $? -ne 0 ]; then
-    echo "python create virtual environment failed"
-
-    # check, if meson is natively available
-    MESON_VERSION=$(meson -v 2> /dev/null)
-    checkStatus $? "meson was also not found: please install python correctly with virtualenv"
-    echo "using meson $MESON_VERSION"
-else
-    . .venv/bin/activate
-    checkStatus $? "python activate virtual environment failed"
-    pip install meson
-    checkStatus $? "python meson installation failed"
-fi
+# prepare python3 virtual environment / meson
+prepareMeson
 
 # prepare build
 cd "vmaf-$VERSION/libvmaf/"

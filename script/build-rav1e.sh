@@ -48,5 +48,5 @@ cd "rav1e-$VERSION/"
 checkStatus $? "change directory failed"
 
 # install
-cargo cinstall --library-type staticlib --release -j $CPUS --prefix "$TOOL_DIR"
+cargo cinstall --library-type staticlib --release -j $CPUS --prefix "$TOOL_DIR" --libdir="$TOOL_DIR/lib"
 checkStatus $? "build or installation failed"

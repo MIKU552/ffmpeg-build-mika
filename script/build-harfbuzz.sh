@@ -44,17 +44,20 @@ checkStatus $? "download failed"
 # unpack
 tar -xf "harfbuzz.tar.xz"
 checkStatus $? "unpack failed"
-cd "harfbuzz-$VERSION/"
-checkStatus $? "change directory failed"
+
+# prepare python3 virtual environment / meson
+prepareMeson
 
 # prepare build
-./configure --prefix="$TOOL_DIR" --enable-shared=no --enable-static=yes
+cd "harfbuzz-$VERSION/"
+checkStatus $? "change directory failed"
+meson build --prefix "$TOOL_DIR" --libdir=lib --default-library=static
 checkStatus $? "configuration failed"
 
 # build
-make -j $CPUS
+ninja -v -j $CPUS -C build
 checkStatus $? "build failed"
 
 # install
-make install
+ninja -v -C build install
 checkStatus $? "installation failed"

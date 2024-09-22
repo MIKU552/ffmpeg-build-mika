@@ -17,6 +17,8 @@ Some libraries have dependencies to others:
 - fontconfig
     - requires libxml2
 - harfbuzz
+    - requires python3 + pip virtualenv
+    - requires ninja
 - sdl
 - libbluray
     - requires libxml2
