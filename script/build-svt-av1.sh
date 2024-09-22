@@ -48,9 +48,14 @@ checkStatus $? "unpack failed"
 # prepare build
 mkdir "build"
 checkStatus $? "create directory failed"
+sed -i '' '36s/.y4m/.y4m.xz/g' SVT-AV1-$VERSION/Build/pgohelper.cmake
+sed -i '' '43s/\${SvtAv1EncApp} -i \${video} -b "\${BUILD_DIRECTORY}\/\${videoname}.ivf" --preset 2 --film-grain 8 --tune 0/"xz -dc \${video} | \${SvtAv1EncApp} -i - -b \\"\${BUILD_DIRECTORY}\/\${videoname}.ivf\\" --preset 2 --film-grain 8 --tune 0 --lookahead 120"/g' SVT-AV1-$VERSION/Build/pgohelper.cmake
+sed -i '' '49s/\${ENCODING_COMMAND}/sh -c "\${ENCODING_COMMAND}"/g' SVT-AV1-$VERSION/Build/pgohelper.cmake
+sed -i '' '280,281s/PGO_DIR}/PGO_DIR} -mllvm -vp-counters-per-site=2048/g' SVT-AV1-$VERSION/CMakeLists.txt
+checkStatus $? "edit pgohelper.cmake failed"
 cd "build/"
 checkStatus $? "change directory failed"
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DSVT_AV1_LTO=ON -DSVT_AV1_PGO=ON -DLLVM_PROFDATA=$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata -DBUILD_SHARED_LIBS=NO ../SVT-AV1-$VERSION
+cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DSVT_AV1_LTO=ON -DSVT_AV1_PGO=ON -DSVT_AV1_PGO_CUSTOM_VIDEOS="$SCRIPT_DIR/../sample" -DLLVM_PROFDATA=$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata -DBUILD_SHARED_LIBS=NO ../SVT-AV1-$VERSION
 checkStatus $? "configuration failed"
 
 # build
