@@ -64,34 +64,35 @@ fi
 
 echo compiling 8bit profile generator
 cd 8bitgen
-cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DFPROFILE_GENERATE=ON ../source
+cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DFPROFILE_GENERATE=ON ../source
 make -j 16
 cd ..
 
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then
 echo compiling 10bit profile generator
 cd 10bitgen
-cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DFPROFILE_GENERATE=ON ../source
+cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DFPROFILE_GENERATE=ON ../source
 make -j 16
 cd ..
 
 echo compiling 12bit profile generator
 cd 12bitgen
-cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DMAIN12=ON -DFPROFILE_GENERATE=ON ../source
+cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DMAIN12=ON -DFPROFILE_GENERATE=ON ../source
 make -j 16
 cd ..
 fi
 
 echo generating profiles simutaneously
-$(cd 8bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata merge *.profraw -o ../8bit.profdata) && echo 8bit &
+$(cd 8bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26) && echo 8bit &
 
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then
-$(cd 10bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata merge *.profraw -o ../10bit.profdata) && echo 10bit &
+$(cd 10bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26) && echo 10bit &
 
-$(cd 12bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && $(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata merge *.profraw -o ../12bit.profdata) && echo 12bit &
+$(cd 12bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26) && echo 12bit &
 fi
 
 wait
+$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata merge *bitgen/*.profraw -o default.profdata
 echo profile generating completed
 
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then
@@ -101,7 +102,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     checkStatus $? "create directory failed"
     cd 10bit/
     checkStatus $? "change directory failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DFPROFILE_USE=ON -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/10bit.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/10bit.profdata" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/10bit.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON ../source
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON ../source
     checkStatus $? "configuration 10 bit failed"
 
     # build 10 bit
@@ -116,7 +117,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     checkStatus $? "create directory failed"
     cd 12bit/
     checkStatus $? "change directory failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DFPROFILE_USE=ON -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/12bit.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/12bit.profdata" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/12bit.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON ../source
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON ../source
     checkStatus $? "configuration 12 bit failed"
 
     # build 12 bit
@@ -131,7 +132,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     checkStatus $? "symlink creation of 10 bit library failed"
     ln -s 12bit/libx265.a libx265_12bit.a
     checkStatus $? "symlink creation of 12 bit library failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DFPROFILE_USE=ON -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/8bit.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/8bit.profdata" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/8bit.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
         -DEXTRA_LINK_FLAGS=-L. -DEXTRA_LIB="x265_10bit.a;x265_12bit.a" -DLINKED_10BIT=ON -DLINKED_12BIT=ON source
     checkStatus $? "configuration 8 bit failed"
 
@@ -157,7 +158,7 @@ EOF
     checkStatus $? "multi-bit library creation failed"
 else
     # prepare build
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DFPROFILE_USE=ON -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/8bit.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/8bit.profdata" -DCMAKE_EXE_LINKER_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/8bit.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF source
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF source
     checkStatus $? "configuration failed"
 
     # build
