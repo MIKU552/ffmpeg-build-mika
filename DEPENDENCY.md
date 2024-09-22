@@ -48,10 +48,12 @@ Some libraries have dependencies to others:
 - openJPEG
 - rav1e
 - svt-av1
+    - requires xz
 - vpx
 - libwebp
 - x264
 - x265
+    - requires xz
 - lame
 - opus
 - libvorbis

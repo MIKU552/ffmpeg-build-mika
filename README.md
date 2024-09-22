@@ -1,5 +1,8 @@
-# FFmpeg
-This script is made to compile FFmpeg with common codecs on Linux and macOS.
+# FFmpeg Build Script for macOS
+This script was made to compile FFmpeg with common codecs on Linux and macOS by Martin Riedl @martinr92 , I made the FFmpeg compiled by this script a shared one, with PGO and LTO optimization (currently only for x265 and SVT-AV1), focus on using it directly by CLI and the best performance as possible.
+
+## Compatibility with Linux
+This script is currently not compatible with Linux, because of the difference of sed's syntax, clang/gnu, and the behavior of CMake. I will try to work on it later after finishing my main development goals.
 
 ## Looking for the pre-compiled result?
 Check out the [build server](https://ffmpeg.martin-riedl.de). Here you can download builds for Linux and macOS.
@@ -144,6 +147,7 @@ If the build of ffmpeg failes during the configuration phase (e.g. because it do
 
 # License
 Copyright 2021 Martin Riedl
+Copyright 2024 Hayden Zheng
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
