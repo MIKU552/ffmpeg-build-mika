@@ -40,8 +40,10 @@ SKIP_OPUS="NO"
 SKIP_LIBVORBIS="NO"
 SKIP_LIBKLVANC="NO"
 SKIP_DECKLINK="YES"
+SKIP_VVDEC="NO"
+SKIP_VVENC="NO"
 DECKLINK_SDK=""
-FFMPEG_SNAPSHOT="NO"
+FFMPEG_SNAPSHOT="YES"
 CPU_LIMIT=""
 for arg in "$@"; do
     KEY=${arg%%=*}
@@ -145,6 +147,14 @@ for arg in "$@"; do
     if [ $KEY = "-SKIP_DECKLINK" ]; then
         SKIP_DECKLINK=$VALUE
         echo "skip decklink $VALUE"
+    fi
+    if [ $KEY = "-SKIP_VVDEC" ]; then
+        SKIP_VVDEC=$VALUE
+        echo "skip vvdec $VALUE"
+    fi
+    if [ $KEY = "-SKIP_VVENC" ]; then
+        SKIP_VVENC=$VALUE
+        echo "skip vvenc $VALUE"
     fi
     if [ $KEY = "-DECKLINK_SDK" ]; then
         DECKLINK_SDK=$VALUE
@@ -554,6 +564,32 @@ else
     echo "YES" > "$LOG_DIR/skip-x265"
 fi
 
+if [ $SKIP_VVDEC = "NO" ]; then
+    START_TIME=$(currentTimeInSeconds)
+    echoSection "compile vvdec"
+    $SCRIPT_DIR/build-vvdec.sh "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$CPUS" > "$LOG_DIR/build-vvdec.log" 2>&1
+    checkStatus $? "build vvdec"
+    echoDurationInSections $START_TIME
+    FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-libvvdec"
+    echo "NO" > "$LOG_DIR/skip-vvdec"
+else
+    echoSection "skip x265"
+    echo "YES" > "$LOG_DIR/skip-vvdec"
+fi
+
+if [ $SKIP_VVENC = "NO" ]; then
+    START_TIME=$(currentTimeInSeconds)
+    echoSection "compile vvenc"
+    $SCRIPT_DIR/build-vvenc.sh "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$CPUS" > "$LOG_DIR/build-vvenc.log" 2>&1
+    checkStatus $? "build vvenc"
+    echoDurationInSections $START_TIME
+    FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-libvvenc"
+    echo "NO" > "$LOG_DIR/skip-vvenc"
+else
+    echoSection "skip x265"
+    echo "YES" > "$LOG_DIR/skip-vvenc"
+fi
+
 if [ $SKIP_LAME = "NO" ]; then
     START_TIME=$(currentTimeInSeconds)
     echoSection "compile lame (mp3)"
@@ -632,10 +668,13 @@ if [ $REQUIRES_NON_FREE = "YES" ]; then
 fi
 # Enable GPL/LGPL v3
 FFMPEG_LIB_FLAGS="--enable-version3 $FFMPEG_LIB_FLAGS"
+# Enable dash demuxer
+FFMPEG_LIB_FLAGS="--enable-demuxer=dash $FFMPEG_LIB_FLAGS"
 
 START_TIME=$(currentTimeInSeconds)
 echoSection "compile ffmpeg"
-$SCRIPT_DIR/build-ffmpeg.sh "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$OUT_DIR" "$CPUS" "$FFMPEG_SNAPSHOT" "$FFMPEG_LIB_FLAGS" > "$LOG_DIR/build-ffmpeg.log" 2>&1
+# vvdec needs to patch ffmpeg
+$SCRIPT_DIR/build-ffmpeg.sh "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$OUT_DIR" "$CPUS" "$FFMPEG_SNAPSHOT" "$SKIP_VVDEC" "$FFMPEG_LIB_FLAGS" > "$LOG_DIR/build-ffmpeg.log" 2>&1
 checkStatus $? "build ffmpeg"
 echoDurationInSections $START_TIME
 

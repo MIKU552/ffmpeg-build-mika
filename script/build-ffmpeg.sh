@@ -22,7 +22,8 @@ TOOL_DIR=$3
 OUT_DIR=$4
 CPUS=$5
 FFMPEG_SNAPSHOT=$6
-FFMPEG_LIB_FLAGS=$7
+SKIP_VVDEC_PATCH=$7
+FFMPEG_LIB_FLAGS=$8
 
 # load functions
 . $SCRIPT_DIR/functions.sh
@@ -64,6 +65,10 @@ EXTRA_VERSION="MiKayule-Group"
 FF_FLAGS="-L${TOOL_DIR}/lib -I${TOOL_DIR}/include"
 export LDFLAGS="$FF_FLAGS"
 export CFLAGS="$FF_FLAGS"
+if [ $SKIP_VVDEC_PATCH = "NO" ]; then
+    wget -O libvvdec.patch https://raw.githubusercontent.com/wiki/fraunhoferhhi/vvdec/data/patch/v6-0001-avcodec-add-external-dec-libvvdec-for-H266-VVC.patch
+    patch -p 1 < libvvdec.patch
+fi
 # --pkg-config-flags="--static" is required to respect the Libs.private flags of the *.pc files
 ./configure --prefix="$OUT_DIR" --pkg-config-flags="--static" --disable-static --enable-shared --enable-lto --extra-version="$EXTRA_VERSION" --enable-gray --enable-libxml2 --enable-videotoolbox --enable-audiotoolbox $FFMPEG_LIB_FLAGS
 checkStatus $? "configuration failed"
