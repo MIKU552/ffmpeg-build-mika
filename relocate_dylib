@@ -5,7 +5,7 @@ dir="$(pwd)/out"
 
 for dylib ($dylibs) {
     if [[ ! -f $dir/lib/$dylib.dylib ]] {
-        echo Please update this program.
+        echo Please update relocate_dylib.
         exit 1
     }
 }
