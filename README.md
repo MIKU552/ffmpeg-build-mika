@@ -17,7 +17,7 @@ This repository builds FFmpeg, FFprobe and FFplay using
 - libraries
     - [libass](https://github.com/libass/libass) for subtitle rendering
     - [libbluray](https://www.videolan.org/developers/libbluray.html) for container format bluray
-    - [decklink](https://www.blackmagicdesign.com/developer/)
+    - [decklink](https://www.blackmagicdesign.com/developer/) for Blackmagicdesign hardware
     - [fontconfig](https://www.freedesktop.org/wiki/Software/fontconfig/)
     - [FreeType](https://freetype.org)
     - [FriBidi](https://github.com/fribidi/fribidi)
