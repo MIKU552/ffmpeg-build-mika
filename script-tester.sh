@@ -31,6 +31,9 @@ echo "tool directory is ${TOOL_DIR}"
 OUT_DIR="$WORKING_DIR/out"
 echo "output directory is ${OUT_DIR}"
 
+# load functions
+. $SCRIPT_DIR/functions.sh
+
 # detect CPU threads (nproc for linux, sysctl for osx)
 CPUS=1
 if [ "$CPU_LIMIT" != "" ]; then
