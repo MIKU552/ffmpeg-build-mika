@@ -58,29 +58,44 @@ sed -i '' '1a\
 cmake_minimum_required(VERSION 2.8.8)
 ' source/CMakeLists.txt
 mkdir 8bitgen
+checkStatus $? "create directory failed"
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then
 mkdir 10bitgen
+checkStatus $? "create directory failed"
 mkdir 12bitgen
+checkStatus $? "create directory failed"
 fi
 
 echo compiling 8bit profile generator
 cd 8bitgen
+checkStatus $? "change directory failed"
 cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DFPROFILE_GENERATE=ON ../source
+checkStatus $? "8bitgen configuration failed"
 make -j 16
+checkStatus $? "build 8bitgen failed"
 cd ..
+checkStatus $? "change directory failed"
 
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then
 echo compiling 10bit profile generator
 cd 10bitgen
+checkStatus $? "change directory failed"
 cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DFPROFILE_GENERATE=ON ../source
+checkStatus $? "10bitgen configuration failed"
 make -j 16
+checkStatus $? "build 10bitgen failed"
 cd ..
+checkStatus $? "change directory failed"
 
 echo compiling 12bit profile generator
 cd 12bitgen
+checkStatus $? "change directory failed"
 cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DMAIN12=ON -DFPROFILE_GENERATE=ON ../source
+checkStatus $? "12bitgen configuration failed"
 make -j 16
+checkStatus $? "build 12bitgen failed"
 cd ..
+checkStatus $? "change directory failed"
 fi
 
 echo generating profiles simutaneously
