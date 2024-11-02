@@ -50,12 +50,9 @@ cd "vvenc-$VERSION/"
 checkStatus $? "change directory failed"
 
 # build
-make g=ninja -j $CPUS release-shared
+make g=ninja -j $CPUS install-prefix=$TOOL_DIR release
 checkStatus $? "build failed"
 
 # install
-make g=ninja install install-prefix=$TOOL_DIR
+make install
 checkStatus $? "installation failed"
-
-# it seems install-prefix is currently not working
-cp -r install/* $TOOL_DIR/
