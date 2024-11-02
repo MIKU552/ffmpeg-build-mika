@@ -1,10 +1,10 @@
 # FFmpeg Build Script for macOS
-This script was made to compile FFmpeg with common codecs on Linux and macOS by Martin Riedl @martinr92 , I made the FFmpeg compiled by this script a shared one, with PGO and LTO optimization (currently only for x265 and SVT-AV1), focus on using it directly by CLI and the best performance as possible.
+This script was made to compile FFmpeg with common codecs on Linux and macOS by Martin Riedl @martinr92. I made the FFmpeg compiled by this script a shared one, with LTO and PGO (currently for x265, SVT-AV1, vvenc, vvdec) optimization, focusing on CLI usage and achieving the best performance possible.
 
 ## Compatibility with Linux
-This script is currently not compatible with Linux, because of the difference of sed's syntax, clang/gnu, and the behavior of CMake. I will try to work on it later after finishing my main development goals.
+This script is currently not compatible with Linux, because of the difference in sed's syntax, clang/gnu, and the behavior of CMake. I will try to work on it later after finishing my main development goals.
 
-## Looking for the pre-compiled result?
+## Looking for the pre-compiled result? (Without VVC codecs and optimizations)
 Check out the [build server](https://ffmpeg.martin-riedl.de). Here you can download builds for Linux and macOS.
 
 ## Result
@@ -46,6 +46,8 @@ This repository builds FFmpeg, FFprobe and FFplay using
     - [libwebp](https://www.webmproject.org/) for webp encoding
     - [x264](http://www.videolan.org/developers/x264.html) for H.264 encoding
     - [x265](https://www.videolan.org/developers/x265.html) for H.265/HEVC encoding (8bit+10bit+12bit)
+    - [vvenc](https://github.com/fraunhoferhhi/vvenc) for H.266/VVC encoding
+    - [vvdec](https://github.com/fraunhoferhhi/vvdec) for H.266/VVC decoding
 - audio codecs
     - [LAME](http://lame.sourceforge.net/) for MP3 encoding
     - [opus](https://opus-codec.org/) for Opus de-/encoding
@@ -78,6 +80,9 @@ For compilation on Windows please use `MSYS2`. Follow the whole instructions for
 - [MSYS2](https://www.msys2.org/)
 
 ## Execution
+> ### Note
+> The PGO training process of vvenc runs very slowly. If it is way too slow for you, you can choose a lighter PGO training process for vvenc. Please follow the comments in `script/build-vvenc.sh`.
+
 All files that are downloaded and generated through this script are placed in the current working directory. The recommendation is to use an empty folder for this and execute the `build.sh`.
 ```sh
 mkdir ffmpeg-compile
