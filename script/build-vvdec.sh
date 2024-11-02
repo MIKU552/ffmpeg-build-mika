@@ -46,13 +46,16 @@ tar -zxf "vvdec.tar.gz"
 checkStatus $? "unpack failed"
 
 # prepare build
-cd "vvdec-$VERSION/"
+mkdir "build"
+checkStatus $? "create directory failed"
+cd "build/"
 checkStatus $? "change directory failed"
+cmake -S ../vvdec-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
 
 # build
-make g=ninja -j $CPUS install-prefix=$TOOL_DIR release
+cmake --build build/release-static -j $CPUS
 checkStatus $? "build failed"
 
 # install
-make install
+cmake --build build/release-static --target install
 checkStatus $? "installation failed"
