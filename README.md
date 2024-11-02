@@ -1,11 +1,13 @@
 # FFmpeg Build Script for macOS
-This script was made to compile FFmpeg with common codecs on Linux and macOS by Martin Riedl @martinr92. I made the FFmpeg compiled by this script a shared one, with LTO and PGO (currently for x265, SVT-AV1, vvenc, vvdec) optimization, focusing on CLI usage and achieving the best performance possible.
+This script was made to compile static FFmpeg with common codecs for Linux and macOS by Martin Riedl [@martinr92](https://gitlab.com/martinr92). I made the FFmpeg compiled by this script a shared one, with LTO and PGO (currently for x265, SVT-AV1, vvenc, vvdec) optimization, focusing on CLI usage and achieving the best performance possible.
 
 ## Compatibility with Linux
 This script is currently not compatible with Linux, because of the difference in sed's syntax, clang/gnu, and the behavior of CMake. I will try to work on it later after finishing my main development goals.
 
-## Looking for the pre-compiled result? (Without VVC codecs and optimizations)
-Check out the [build server](https://ffmpeg.martin-riedl.de). Here you can download builds for Linux and macOS.
+## Looking for the pre-compiled result?
+You can check out the [latest release](https://github.com/MiKayule/ffmpeg-build-macos/releases/latest/download/ffmpeg-gpl-shared-macos-arm64.zip) for a fully optimized macOS ARM64 shared build.
+
+You can also check out the [build server](https://ffmpeg.martin-riedl.de) held by the upstream author, Martin Riedl @martinr92. Here you can download builds for Linux and macOS, but without VVC codecs or optimizations.
 
 ## Result
 This repository builds FFmpeg, FFprobe and FFplay using
