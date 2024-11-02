@@ -1,6 +1,7 @@
 #!/bin/sh
 
 # Copyright 2021 Martin Riedl
+# Copyright 2024 Hayden Zheng
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -681,7 +682,7 @@ echoDurationInSections $START_TIME
 echoSection "compilation finished successfully"
 echoDurationInSections $COMPILATION_START_TIME
 
-../relocate_dylib
+relocateDylib
 
 if [ $SKIP_BUNDLE = "NO" ]; then
     echoSection "bundle result"

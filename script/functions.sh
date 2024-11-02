@@ -1,6 +1,7 @@
 #!/bin/sh
 
 # Copyright 2021 Martin Riedl
+# Copyright 2024 Hayden Zheng
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +29,7 @@ echoSection(){
 }
 
 currentTimeInSeconds(){
-    TIME_GDATE=$(date +%s)
+    local TIME_GDATE=$(date +%s)
     if [ $? -eq 0 ]
     then
         echo $TIME_GDATE
@@ -38,13 +39,13 @@ currentTimeInSeconds(){
 }
 
 echoDurationInSections(){
-    END_TIME=$(currentTimeInSeconds)
+    local END_TIME=$(currentTimeInSeconds)
     echo "took $(($END_TIME - $1))s"
 }
 
 download(){
-    URL=$1
-    NAME=$2
+    local URL=$1
+    local NAME=$2
     curl -o "$NAME" -L -f "$URL"
 }
 
@@ -63,4 +64,21 @@ prepareMeson(){
         pip install meson
         checkStatus $? "python meson installation failed"
     fi
+}
+
+relocateDylib(){
+    local EXES=("ffmpeg" "ffplay" "ffprobe")
+    local DYLIBS=()
+
+    for file in $OUT_DIR/lib/lib*.*.dylib; do
+        if [[ -L "$file" ]]; then
+            DYLIBS+=("$file")
+        fi
+    done
+
+    for exe in $EXES; do
+        for dylib in $DYLIBS; do
+            install_name_tool -change $dir/lib/$dylib.dylib @executable_path/../lib/$dylib.dylib $dir/bin/$exe
+        done
+    done
 }
