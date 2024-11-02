@@ -70,15 +70,18 @@ relocateDylib(){
     local EXES=("ffmpeg" "ffplay" "ffprobe")
     local DYLIBS=()
 
-    for file in $OUT_DIR/lib/lib*.*.dylib; do
+    cd $OUT_DIR/lib
+    for file in lib*.*.dylib; do
         if [[ -L "$file" ]]; then
             DYLIBS+=("$file")
         fi
     done
+    cd $WORKING_DIR
 
     for exe in $EXES; do
         for dylib in $DYLIBS; do
-            install_name_tool -change $dir/lib/$dylib.dylib @executable_path/../lib/$dylib.dylib $dir/bin/$exe
+            install_name_tool -change $OUT_DIR/lib/$dylib @executable_path/../lib/$dylib $OUT_DIR/bin/$exe
+            checkStatus $? "dylib relocating failed"
         done
     done
 }
