@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# Copyright 2021 Martin Riedl
 # Copyright 2024 Hayden Zheng
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,12 +46,42 @@ checkStatus $? "download failed"
 tar -zxf "vvenc.tar.gz"
 checkStatus $? "unpack failed"
 
+# generate pgo profile
+mkdir "pgogen"
+checkStatus $? "create directory failed"
+cd "pgogen/"
+checkStatus $? "change directory failed"
+
+cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$(pwd) -DCMAKE_BUILD_TYPE=Release
+checkStatus $? "configuration pgogen failed"
+
+cmake --build build/release-static -j $CPUS
+checkStatus $? "build pgogen failed"
+
+cmake --build build/release-static --target install
+checkStatus $? "pgogen installation failed"
+
+echo generating profiles
+xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o ../stefan_sif.266
+# if it's way too slow for you, comment out the three lines below
+xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o ../taikotemoto.266
+xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o ../720p_bbb.266
+xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o ../4k_bbb.266
+
+$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata merge *.profraw -o ../default.profdata
+echo profile generation completed
+
+cd ../vvenc-$VERSION
+make realclean
+cd ..
+
 # prepare build
 mkdir "build"
 checkStatus $? "create directory failed"
 cd "build/"
 checkStatus $? "change directory failed"
-cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
+# pgo will change function control flow, which will cause error [-Wno-backend-plugin]
+cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-fprofile-use=$(pwd)/../default.profdata -Wno-backend-plugin" -DCMAKE_CXX_FLAGS="-fprofile-use=$(pwd)/../default.profdata -Wno-backend-plugin" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
 
 # build
 cmake --build build/release-static -j $CPUS

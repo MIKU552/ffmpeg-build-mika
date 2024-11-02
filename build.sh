@@ -565,19 +565,6 @@ else
     echo "YES" > "$LOG_DIR/skip-x265"
 fi
 
-if [ $SKIP_VVDEC = "NO" ]; then
-    START_TIME=$(currentTimeInSeconds)
-    echoSection "compile vvdec"
-    $SCRIPT_DIR/build-vvdec.sh "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$CPUS" > "$LOG_DIR/build-vvdec.log" 2>&1
-    checkStatus $? "build vvdec"
-    echoDurationInSections $START_TIME
-    FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-libvvdec"
-    echo "NO" > "$LOG_DIR/skip-vvdec"
-else
-    echoSection "skip x265"
-    echo "YES" > "$LOG_DIR/skip-vvdec"
-fi
-
 if [ $SKIP_VVENC = "NO" ]; then
     START_TIME=$(currentTimeInSeconds)
     echoSection "compile vvenc"
@@ -589,6 +576,19 @@ if [ $SKIP_VVENC = "NO" ]; then
 else
     echoSection "skip x265"
     echo "YES" > "$LOG_DIR/skip-vvenc"
+fi
+
+if [ $SKIP_VVDEC = "NO" ]; then
+    START_TIME=$(currentTimeInSeconds)
+    echoSection "compile vvdec"
+    $SCRIPT_DIR/build-vvdec.sh "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$CPUS" > "$LOG_DIR/build-vvdec.log" 2>&1
+    checkStatus $? "build vvdec"
+    echoDurationInSections $START_TIME
+    FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-libvvdec"
+    echo "NO" > "$LOG_DIR/skip-vvdec"
+else
+    echoSection "skip x265"
+    echo "YES" > "$LOG_DIR/skip-vvdec"
 fi
 
 if [ $SKIP_LAME = "NO" ]; then
