@@ -49,6 +49,8 @@ Some libraries have dependencies to others:
 - rav1e
 - svt-av1
 - vpx
+- vvenc
+    - requires cmake
 - libwebp
 - x264
 - x265

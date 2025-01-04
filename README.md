@@ -40,6 +40,7 @@ This repository builds FFmpeg, FFprobe and FFplay using
     - [svt-av1](https://gitlab.com/AOMediaCodec/SVT-AV1) for AV1 encoding
     - [libtheroa](https://www.theora.org) for theora encoding
     - [vpx](https://www.webmproject.org/) for VP8/VP9 de-/encoding
+    - [vvenc](https://github.com/fraunhoferhhi/vvenc) for H.266/VVC encoding
     - [libwebp](https://www.webmproject.org/) for webp encoding
     - [x264](http://www.videolan.org/developers/x264.html) for H.264 encoding
     - [x265](https://www.videolan.org/developers/x265.html) for H.265/HEVC encoding (8bit+10bit+12bit)
@@ -106,6 +107,7 @@ If you don't need a codec/library, you can also disable them:
     - `-SKIP_SVT_AV1=YES`
     - `-SKIP_LIBTHEORA=YES`
     - `-SKIP_VPX=YES`
+    - `-SKIP_VVENC=YES`
     - `-SKIP_LIBWEBP=YES`
     - `-SKIP_X264=YES`
     - `-SKIP_X265=YES`
