@@ -48,6 +48,8 @@ cd "zvbi-$VERSION/"
 checkStatus $? "change directory failed"
 
 # prepare build
+echoSection "configure zvbi $VERSION"
+chmod +x autogen.sh
 ./autogen.sh && ./configure --prefix="$TOOL_DIR" --enable-shared=no
 checkStatus $? "configuration failed"
 
