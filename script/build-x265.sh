@@ -52,9 +52,9 @@ cd "x265/"
 checkStatus $? "change directory failed"
 
 # generate pgo profile
-sed -i '' '19s/.*/cmake_policy(SET CMP0069 NEW)/' source/CMakeLists.txt
-sed -i '' '20s/.*/project (x265)/' source/CMakeLists.txt
-sed -i '' '1a\
+sed -i '19s/.*/cmake_policy(SET CMP0069 NEW)/' source/CMakeLists.txt
+sed -i '20s/.*/project (x265)/' source/CMakeLists.txt
+sed -i '1a\
 cmake_minimum_required(VERSION 2.8.8)
 ' source/CMakeLists.txt
 mkdir 8bitgen
@@ -108,7 +108,7 @@ $(cd 12bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m -
 fi
 
 wait
-$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata merge *bitgen/*.profraw -o default.profdata
+llvm-profdata merge *bitgen/*.profraw -o default.profdata
 echo profile generating completed
 
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then

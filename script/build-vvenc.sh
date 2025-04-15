@@ -68,7 +68,7 @@ xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | bin/vvencapp -i - --y4m --pres
 xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o ../720p_bbb.266
 xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o ../4k_bbb.266
 
-$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata merge *.profraw -o ../default.profdata
+llvm-profdata merge *.profraw -o ../default.profdata
 echo profile generation completed
 
 cd ../vvenc-$VERSION
@@ -81,7 +81,7 @@ checkStatus $? "create directory failed"
 cd "build/"
 checkStatus $? "change directory failed"
 # pgo will change function control flow, which will cause error [-Wno-backend-plugin]
-cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-fprofile-use=$(pwd)/../default.profdata -Wno-backend-plugin" -DCMAKE_CXX_FLAGS="-fprofile-use=$(pwd)/../default.profdata -Wno-backend-plugin" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
+cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-fprofile-use=$(pwd)/../default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$(pwd)/../default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
 
 # build
 cmake --build build/release-static -j $CPUS

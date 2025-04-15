@@ -70,7 +70,7 @@ if [ $SKIP_VVDEC_PATCH = "NO" ]; then
     patch -p 1 < libvvdec.patch
 fi
 # --pkg-config-flags="--static" is required to respect the Libs.private flags of the *.pc files
-./configure --prefix="$OUT_DIR" --pkg-config-flags="--static" --disable-static --enable-shared --enable-lto --extra-version="$EXTRA_VERSION" --enable-gray --enable-libxml2 --enable-videotoolbox --enable-audiotoolbox $FFMPEG_LIB_FLAGS
+./configure --prefix="$OUT_DIR" --pkg-config-flags="--static" --disable-static --enable-shared --enable-lto --extra-version="$EXTRA_VERSION" --enable-gray --enable-libxml2 $FFMPEG_LIB_FLAGS
 checkStatus $? "configuration failed"
 
 # start build

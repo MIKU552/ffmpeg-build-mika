@@ -682,7 +682,7 @@ echoDurationInSections $START_TIME
 echoSection "compilation finished successfully"
 echoDurationInSections $COMPILATION_START_TIME
 
-relocateDylib
+# relocateDylib
 
 if [ $SKIP_BUNDLE = "NO" ]; then
     echoSection "bundle result"
