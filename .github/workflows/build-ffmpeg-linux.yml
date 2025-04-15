@@ -26,7 +26,8 @@ jobs:
           python3 python3-pip python3-venv python3-virtualenv \
           curl wget patch tar gzip bzip2 xz-utils zip \
           autoconf automake libtool \
-          clang llvm # <--- 安装 Clang 和 LLVM 用于 PGO
+          clang llvm \
+          gperf
         # 安装 Rust 和 cargo-c (用于 rav1e)
         curl https://sh.rustup.rs -sSf | sh -s -- -y
         cargo install cargo-c
@@ -56,8 +57,19 @@ jobs:
     - name: Make build script executable
       run: chmod +x build.sh
 
+  # ... （之前的步骤，包括运行 build.sh） ...
+
     - name: Run FFmpeg Build Script
-      run: ./build.sh -SKIP_TEST=YES -SKIP_BUNDLE=YES # 在 CI 中通常跳过测试和打包步骤
+      id: build_step # 给这一步一个ID，虽然这里没直接用，但有时有用
+      run: ./build.sh -SKIP_TEST=YES -SKIP_BUNDLE=YES
+
+    - name: Upload Logs on Failure # <--- 新增步骤
+      if: failure() # 关键：仅在前面步骤失败时运行
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs-${{ github.sha }} # 产物名称
+        path: log/ # 上传整个 log 目录
+        retention-days: 7 # 可选：日志保留天数
 
     - name: Upload FFmpeg Build Artifacts
       uses: actions/upload-artifact@v4
