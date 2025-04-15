@@ -1,0 +1,72 @@
+name: Build FFmpeg on Linux (with PGO)
+
+on:
+  push:
+    branches: [ main ] # 当 main 分支有推送时触发
+  pull_request:
+    branches: [ main ] # 当有针对 main 分支的 Pull Request 时触发
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # 使用最新的 Ubuntu Linux 运行环境
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4 # 检出你的代码
+
+    - name: Set up environment variables # 设置环境变量，确保工具链在 PATH 中
+      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install Build Dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y --no-install-recommends \
+          build-essential cmake nasm ninja-build pkg-config \
+          python3 python3-pip python3-venv python3-virtualenv \
+          curl wget patch tar gzip bzip2 xz-utils zip \
+          autoconf automake libtool \
+          clang llvm # <--- 安装 Clang 和 LLVM 用于 PGO
+        # 安装 Rust 和 cargo-c (用于 rav1e)
+        curl https://sh.rustup.rs -sSf | sh -s -- -y
+        cargo install cargo-c
+
+    # 可选：缓存依赖项以加速构建
+    # 缓存 cargo 下载和构建的内容
+    - name: Cache Cargo registry and index
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    # 缓存构建工具和源码（如果下载/编译耗时）
+    - name: Cache build tools and sources
+      uses: actions/cache@v4
+      with:
+        path: |
+          tool
+          source
+        # 当脚本或版本文件变化时，缓存失效
+        key: ${{ runner.os }}-ffmpeg-deps-${{ hashFiles('script/*.sh', 'version/*') }}
+        restore-keys: |
+          ${{ runner.os }}-ffmpeg-deps-
+
+    - name: Make build script executable
+      run: chmod +x build.sh
+
+    - name: Run FFmpeg Build Script
+      run: ./build.sh -SKIP_TEST=YES -SKIP_BUNDLE=YES # 在 CI 中通常跳过测试和打包步骤
+
+    - name: Upload FFmpeg Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ffmpeg-linux-build-${{ github.sha }} # 为构建产物命名
+        path: |
+          out/bin/ffmpeg
+          out/bin/ffprobe
+          out/bin/ffplay
+          out/lib/*.so* # 上传编译好的二进制文件和共享库
+          log # 同时上传日志方便调试
+        retention-days: 5 # 可选：设置产物保留天数
