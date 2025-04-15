@@ -27,8 +27,7 @@ jobs:
           curl wget patch tar gzip bzip2 xz-utils zip \
           autoconf automake libtool \
           clang llvm \
-          gperf gettext 
-        sudo apt-get build-dep -y zvbi
+          gperf gettext gettext-dev
         # 安装 Rust 和 cargo-c (用于 rav1e)
         curl https://sh.rustup.rs -sSf | sh -s -- -y
         cargo install cargo-c
