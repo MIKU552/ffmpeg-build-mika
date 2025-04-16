@@ -33,22 +33,29 @@ jobs:
         cargo install cargo-c
 
     - name: Make build script executable
-      run: chmod +x build.sh
+      run: chmod +x build_fix.sh
 
   # ... （之前的步骤，包括运行 build.sh） ...
 
     - name: Run FFmpeg Build Script
       id: build_step # 给这一步一个ID，虽然这里没直接用，但有时有用
-      run: ./build.sh -SKIP_TEST=YES -SKIP_BUNDLE=YES
+      run: ./build_fix.sh -SKIP_TEST=YES -SKIP_BUNDLE=YES
 
     - name: Upload Logs on Failure # <--- 新增步骤
       if: failure() # 关键：仅在前面步骤失败时运行
       uses: actions/upload-artifact@v4
       with:
         name: build-logs-${{ github.sha }} # 产物名称
+        path: log # 上传整个 log 目录
+        retention-days: 7 # 可选：日志保留天数
+    - name: Upload results on Failure # <--- 新增步骤
+      if: failure() # 关键：仅在前面步骤失败时运行
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs-${{ github.sha }} # 产物名称
         path: |
-          log # 上传整个 log 目录
-          tool/lib/pkgconfig
+          source
+          tools
         retention-days: 7 # 可选：日志保留天数
 
     - name: Upload FFmpeg Build Artifacts
