@@ -14,6 +14,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4 # 检出你的代码
+      with:
+        lfs: true  # 关键修改：启用LFS支持
 
     - name: Set up environment variables # 设置环境变量，确保工具链在 PATH 中
       run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
