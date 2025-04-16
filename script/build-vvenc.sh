@@ -39,7 +39,7 @@ cd "vvenc/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/fraunhoferhhi/vvenc/archive/refs/tags/v$VERSION.tar.gz "vvenc.tar.gz"
+download https://github.com/fraunhoferhhi/vvenc/archive/$VERSION.tar.gz "vvenc.tar.gz"
 checkStatus $? "download failed"
 
 # unpack
