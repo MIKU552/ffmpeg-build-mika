@@ -68,7 +68,7 @@ xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | bin/vvencapp -i - --y4m --pres
 xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o ../720p_bbb.266
 xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o ../4k_bbb.266
 
-llvm-profdata merge *.profraw -o ../default.profdata
+/usr/bin/llvm-profdata merge *.profraw -o ../default.profdata
 echo profile generation completed
 
 cd ../vvenc-$VERSION

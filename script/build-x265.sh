@@ -108,7 +108,7 @@ $(cd 12bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m -
 fi
 
 wait
-llvm-profdata merge *bitgen/*.profraw -o default.profdata
+/usr/bin/llvm-profdata merge *bitgen/*.profraw -o default.profdata
 echo profile generating completed
 
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then

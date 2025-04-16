@@ -67,7 +67,7 @@ bin/vvdecapp -b ../../vvenc/taikotemoto.266 -o /dev/null
 bin/vvdecapp -b ../../vvenc/720p_bbb.266 -o /dev/null
 bin/vvdecapp -b ../../vvenc/4k_bbb.266 -o /dev/null
 
-llvm-profdata merge *.profraw -o ../default.profdata
+/usr/bin/llvm-profdata merge *.profraw -o ../default.profdata
 echo profile generation completed
 
 cd ../vvdec-$VERSION
