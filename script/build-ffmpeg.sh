@@ -72,7 +72,7 @@ fi
 
 export PKG_CONFIG_PATH="/home/runner/work/ffmpeg-build-mika/ffmpeg-build-mika/tool/lib/pkgconfig:$PKG_CONFIG_PATH"
 # --pkg-config-flags="--static" is required to respect the Libs.private flags of the *.pc files
-./configure -cc=clang --cxx=clang++ --extra-cflags="-fuse-ld=lld" --extra-ldflags="-fuse-ld=lld" --prefix="$OUT_DIR" --pkg-config-flags="--static" --disable-static --enable-shared --enable-lto --extra-version="$EXTRA_VERSION" --enable-gray --enable-libxml2 $FFMPEG_LIB_FLAGS
+./configure --cc=clang --cxx=clang++ --extra-cflags="-fuse-ld=lld" --extra-ldflags="-fuse-ld=lld" --prefix="$OUT_DIR" --pkg-config-flags="--static" --disable-static --enable-shared --enable-lto --extra-version="$EXTRA_VERSION" --enable-gray --enable-libxml2 $FFMPEG_LIB_FLAGS
 checkStatus $? "configuration failed"
 
 # start build
