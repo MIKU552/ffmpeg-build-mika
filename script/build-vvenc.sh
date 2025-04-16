@@ -81,7 +81,7 @@ checkStatus $? "create directory failed"
 cd "build/"
 checkStatus $? "change directory failed"
 # pgo will change function control flow, which will cause error [-Wno-backend-plugin]
-cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-fprofile-use=$(pwd)/../default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$(pwd)/../default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
+cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-Wno-error=backend-plugin -fprofile-use=$(pwd)/../default.profdata" -DCMAKE_CXX_FLAGS="-Wno-error=backend-plugin -fprofile-use=$(pwd)/../default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
 
 # build
 cmake --build build/release-static -j $CPUS
