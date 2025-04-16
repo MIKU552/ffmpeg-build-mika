@@ -15,6 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Force LLVM compiler
+export CC=clang
+export CXX=clang++
+export AR=llvm-ar
+export NM=llvm-nm
+export RANLIB=llvm-ranlib
+export LD=lld
+echo "Using LLVM: CC=$CC, CXX=$CXX, AR=$AR, NM=$NM, RANLIB=$RANLIB, LD=$LD"
+
 # parse arguments
 SKIP_BUNDLE="YES"
 SKIP_TEST="NO"
