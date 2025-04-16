@@ -46,7 +46,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: build-logs-${{ github.sha }} # 产物名称
-        path: log/ # 上传整个 log 目录
+        path: |
+          log # 上传整个 log 目录
+          tool/lib/pkgconfig
         retention-days: 7 # 可选：日志保留天数
 
     - name: Upload FFmpeg Build Artifacts
