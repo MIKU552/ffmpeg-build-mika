@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+CFLAGS="-D_GNU_SOURCE $CFLAGS"
+export CFLAGS
+
 # handle arguments
 echo "arguments: $@"
 SCRIPT_DIR=$1
