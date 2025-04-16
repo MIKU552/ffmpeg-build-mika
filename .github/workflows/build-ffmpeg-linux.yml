@@ -22,7 +22,7 @@ jobs:
       run: |
         sudo apt-get update -y
         sudo apt-get install -y --no-install-recommends \
-          build-essential cmake nasm ninja-build pkg-config \
+          cmake nasm ninja-build pkg-config \
           python3 python3-pip python3-venv python3-virtualenv \
           curl wget patch tar gzip bzip2 xz-utils zip \
           autoconf automake libtool \
