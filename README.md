@@ -1,13 +1,13 @@
 # FFmpeg Build Script for macOS
-This script was made to compile static FFmpeg with common codecs for Linux and macOS by Martin Riedl [@martinr92](https://gitlab.com/martinr92). I made the FFmpeg compiled by this script a shared one, with LTO and PGO (currently for x265, SVT-AV1, vvenc, vvdec) optimization, focusing on CLI usage and achieving the best performance possible.
+This script was made to compile static FFmpeg with common codecs for Linux and macOS by Martin Riedl [@martinr92](https://gitlab.com/martinr92). This version will build shared binaries instead of static, with LTO and PGO (currently for x265, SVT-AV1, vvenc, vvdec) optimization, focusing on CLI usage and try achieving the best possible performance.
 
 ## Compatibility with Linux
-This script is currently not compatible with Linux, because of the difference in sed's syntax, clang/gnu, and the behavior of CMake. I will try to work on it later after finishing my main development goals.
+This script is currently not compatible with Linux, because of the difference in sed's syntax, clang/gnu, and the behavior of CMake. I will try to work on it later.
 
 ## Looking for the pre-compiled result?
 You can check out the [latest release](https://github.com/MiKayule/ffmpeg-build-macos/releases/latest/download/ffmpeg-gpl-shared-macos-arm64.zip) for a fully optimized macOS ARM64 shared build.
 
-You can also check out the [build server](https://ffmpeg.martin-riedl.de) held by the upstream author, Martin Riedl @martinr92. Here you can download builds for Linux and macOS, but without VVC codecs or optimizations.
+You can also check out the [build server](https://ffmpeg.martin-riedl.de) held by the upstream author, Martin Riedl @martinr92. Here you can download static (instead of shared) builds for Linux and macOS, but without optimizations.
 
 ## Result
 This repository builds FFmpeg, FFprobe and FFplay using
@@ -45,6 +45,7 @@ This repository builds FFmpeg, FFprobe and FFplay using
     - [svt-av1](https://gitlab.com/AOMediaCodec/SVT-AV1) for AV1 encoding
     - [libtheroa](https://www.theora.org) for theora encoding
     - [vpx](https://www.webmproject.org/) for VP8/VP9 de-/encoding
+    - [vvenc](https://github.com/fraunhoferhhi/vvenc) for H.266/VVC encoding
     - [libwebp](https://www.webmproject.org/) for webp encoding
     - [x264](http://www.videolan.org/developers/x264.html) for H.264 encoding
     - [x265](https://www.videolan.org/developers/x265.html) for H.265/HEVC encoding (8bit+10bit+12bit)
@@ -83,7 +84,7 @@ For compilation on Windows please use `MSYS2`. Follow the whole instructions for
 
 ## Execution
 > ### Note
-> The PGO training process of vvenc runs very slowly. If it is way too slow for you, you can choose a lighter PGO training process for vvenc. Please follow the comments in `script/build-vvenc.sh`.
+> The PGO training process of vvenc runs incredibly slow. If it is way too slow for you, you can choose a lighter PGO training process for vvenc. Please follow the comments in `script/build-vvenc.sh`.
 
 All files that are downloaded and generated through this script are placed in the current working directory. The recommendation is to use an empty folder for this and execute the `build.sh`.
 ```sh
@@ -116,6 +117,7 @@ If you don't need a codec/library, you can also disable them:
     - `-SKIP_SVT_AV1=YES`
     - `-SKIP_LIBTHEORA=YES`
     - `-SKIP_VPX=YES`
+    - `-SKIP_VVENC=YES`
     - `-SKIP_LIBWEBP=YES`
     - `-SKIP_X264=YES`
     - `-SKIP_X265=YES`

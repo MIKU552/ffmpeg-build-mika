@@ -88,6 +88,12 @@ if [ $DETECTED_OS = "Msys" ]; then
     cd ..
 fi
 
+# build fix for macOS (glib)
+# https://gitlab.com/martinr92/ffmpeg/-/issues/27
+if [ $DETECTED_OS = "Darwin" ]; then
+    export CFLAGS="-Wno-int-conversion"
+fi
+
 # prepare build
 ./configure --prefix="$TOOL_DIR" --with-pc-path="$TOOL_DIR/lib/pkgconfig" --with-internal-glib CFLAGS="-Wno-int-conversion"
 checkStatus $? "configuration of pkg-config failed"

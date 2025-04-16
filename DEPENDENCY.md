@@ -50,6 +50,8 @@ Some libraries have dependencies to others:
 - svt-av1
     - requires xz
 - vpx
+- vvenc
+    - requires cmake
 - libwebp
 - x264
 - x265

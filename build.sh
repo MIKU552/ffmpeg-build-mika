@@ -32,6 +32,7 @@ SKIP_RAV1E="NO"
 SKIP_SVT_AV1="NO"
 SKIP_LIBTHEORA="NO"
 SKIP_VPX="NO"
+SKIP_VVENC="NO"
 SKIP_LIBWEBP="NO"
 SKIP_X264="NO"
 SKIP_X265="NO"
@@ -112,6 +113,10 @@ for arg in "$@"; do
     if [ $KEY = "-SKIP_VPX" ]; then
         SKIP_VPX=$VALUE
         echo "skip vpx $VALUE"
+    fi
+    if [ $KEY = "-SKIP_VVENC" ]; then
+        SKIP_VVENC=$VALUE
+        echo "skip vvenc $VALUE"
     fi
     if [ $KEY = "-SKIP_LIBWEBP" ]; then
         SKIP_LIBWEBP=$VALUE
@@ -522,6 +527,19 @@ if [ $SKIP_VPX = "NO" ]; then
 else
     echoSection "skip vpx"
     echo "YES" > "$LOG_DIR/skip-vpx"
+fi
+
+if [ $SKIP_VVENC = "NO" ]; then
+    START_TIME=$(currentTimeInSeconds)
+    echoSection "compile vvenc"
+    $SCRIPT_DIR/build-vvenc.sh "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$CPUS" > "$LOG_DIR/build-vvenc.log" 2>&1
+    checkStatus $? "build vvenc"
+    echoDurationInSections $START_TIME
+    FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-libvvenc"
+    echo "NO" > "$LOG_DIR/skip-vvenc"
+else
+    echoSection "skip vvenc"
+    echo "YES" > "$LOG_DIR/skip-vvenc"
 fi
 
 if [ $SKIP_LIBWEBP = "NO" ]; then
