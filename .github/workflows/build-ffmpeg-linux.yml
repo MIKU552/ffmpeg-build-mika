@@ -64,10 +64,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ffmpeg-linux-build-${{ github.sha }} # 为构建产物命名
-        path: |
-          out/bin/ffmpeg
-          out/bin/ffprobe
-          out/bin/ffplay
-          out/lib/*.so* # 上传编译好的二进制文件和共享库
-          log # 同时上传日志方便调试
+        path: out
         retention-days: 5 # 可选：设置产物保留天数
