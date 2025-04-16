@@ -56,7 +56,8 @@ sed -i '280,281s/PGO_DIR}/PGO_DIR} -mllvm -vp-counters-per-site=2048/g' SVT-AV1-
 checkStatus $? "edit pgohelper.cmake failed"
 cd "build/"
 checkStatus $? "change directory failed"
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DSVT_AV1_LTO=ON -DSVT_AV1_PGO=ON -DSVT_AV1_PGO_CUSTOM_VIDEOS="$SCRIPT_DIR/../sample" -DCMAKE_C_COMPILER=clang -DLLVM_PROFDATA=llvm-profdata -DBUILD_SHARED_LIBS=NO ../SVT-AV1-$VERSION
+# -DCMAKE_C_COMPILER=clang
+cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DSVT_AV1_LTO=ON -DSVT_AV1_PGO=ON -DSVT_AV1_PGO_CUSTOM_VIDEOS="$SCRIPT_DIR/../sample" -DLLVM_PROFDATA=llvm-profdata -DBUILD_SHARED_LIBS=NO ../SVT-AV1-$VERSION
 checkStatus $? "configuration failed"
 
 # build
