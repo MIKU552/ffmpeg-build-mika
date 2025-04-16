@@ -26,7 +26,7 @@ jobs:
           python3 python3-pip python3-venv python3-virtualenv \
           curl wget patch tar gzip bzip2 xz-utils zip \
           autoconf automake libtool \
-          clang llvm \
+          clang llvm llvm-18-tools\
           gperf gettext autopoint
         # 安装 Rust 和 cargo-c (用于 rav1e)
         curl https://sh.rustup.rs -sSf | sh -s -- -y
