@@ -72,6 +72,7 @@ checkStatus $? "build failed"
 # --- FIX: Create dummy man page to prevent install error ---
 echo "Creating dummy nasm.1 to prevent install error"
 touch nasm.1
+touch ndisasm.1
 # --- End FIX ---
 
 # install
