@@ -38,7 +38,7 @@ cd "rav1e/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/xiph/rav1e/archive/refs/tags/v$VERSION.tar.gz "rav1e.tar.gz"
+download https://gh-proxy.com/https://github.com/xiph/rav1e/archive/refs/tags/v$VERSION.tar.gz "rav1e.tar.gz"
 checkStatus $? "download failed"
 
 # unpack

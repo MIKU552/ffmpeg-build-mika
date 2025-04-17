@@ -59,7 +59,7 @@ checkStatus $? "edit pgohelper.cmake failed"
 cd "build/"
 checkStatus $? "change directory failed"
 # Configure for GCC PGO/LTO - Remove LLVM_PROFDATA
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DSVT_AV1_LTO=ON -DSVT_AV1_PGO=ON -DSVT_AV1_PGO_CUSTOM_VIDEOS="$SCRIPT_DIR/../sample" -DBUILD_SHARED_LIBS=NO ../SVT-AV1-$VERSION
+cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DSVT_AV1_LTO=ON -DSVT_AV1_PGO=ON -DSVT_AV1_PGO_CUSTOM_VIDEOS="$SCRIPT_DIR/../sample" -DBUILD_SHARED_LIBS=NO ../SVT-AV1-v$VERSION
 checkStatus $? "configuration failed"
 
 # build
