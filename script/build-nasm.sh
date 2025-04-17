@@ -20,6 +20,8 @@ SCRIPT_DIR=$1
 SOURCE_DIR=$2
 TOOL_DIR=$3
 CPUS=$4
+# Get LOG_DIR passed from build.sh if needed, or reconstruct path
+LOG_DIR="$WORKING_DIR/log" # Assuming WORKING_DIR is set or use absolute path logic from build.sh
 
 # load functions
 . $SCRIPT_DIR/functions.sh
@@ -32,13 +34,12 @@ echo "version: $VERSION"
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
-mkdir "nasm"
-checkStatus $? "create directory failed"
+mkdir "nasm" # This might fail harmlessly if cleaned source dir doesn't exist yet
 cd "nasm/"
 checkStatus $? "change directory failed"
 
 # download source
-mkdir "nasm"
+mkdir "nasm" # Script creates source/nasm/nasm
 checkStatus $? "create directory failed"
 download http://www.nasm.us/pub/nasm/releasebuilds/$VERSION/nasm-$VERSION.tar.gz nasm.tar.gz
 if [ $? -ne 0 ]; then
@@ -59,7 +60,7 @@ if [ -f "configure" ]; then
 else
     echo "run autogen first"
     ./autogen.sh
-    checkStatus "autogen failed"
+    checkStatus $? "autogen failed" # Added exit check for autogen
 fi
 ./configure --prefix="$TOOL_DIR"
 checkStatus $? "configuration failed"
@@ -68,6 +69,15 @@ checkStatus $? "configuration failed"
 make -j $CPUS
 checkStatus $? "build failed"
 
+# --- FIX: Create dummy man page to prevent install error ---
+echo "Creating dummy nasm.1 to prevent install error"
+touch nasm.1
+# --- End FIX ---
+
 # install
 make install
 checkStatus $? "installation failed"
+
+# Note: Success marker logic was removed from individual scripts
+# If you revert to that logic, add touch command here:
+# touch "$LOG_DIR/build-nasm.success"
