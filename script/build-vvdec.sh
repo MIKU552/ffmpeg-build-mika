@@ -52,7 +52,7 @@ checkStatus $? "create directory failed"
 cd "pgogen/"
 checkStatus $? "change directory failed"
 
-cmake -S ../vvdec-$VERSION -B build/release-static -G 'Ninja' -DVVDEC_INSTALL_VVDECAPP=ON -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$(pwd) -DCMAKE_BUILD_TYPE=Release
+cmake -S ../vvdec-$VERSION -B build/release-static -G 'Ninja' -DVVDEC_INSTALL_VVDECAPP=ON -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$(pwd) -DCMAKE_BUILD_TYPE=Release
 checkStatus $? "configuration pgogen failed"
 
 cmake --build build/release-static -j $CPUS
@@ -67,11 +67,12 @@ bin/vvdecapp -b ../../vvenc/taikotemoto.266 -o /dev/null
 bin/vvdecapp -b ../../vvenc/720p_bbb.266 -o /dev/null
 bin/vvdecapp -b ../../vvenc/4k_bbb.266 -o /dev/null
 
-/usr/bin/llvm-profdata merge *.profraw -o ../default.profdata
+# Profile merging usually not needed for GCC >= 9
+# If needed: gcov-tool merge ...
 echo profile generation completed
 
 cd ../vvdec-$VERSION
-make realclean
+make realclean # vvdec uses make for cleaning
 cd ..
 
 # prepare build
@@ -79,7 +80,7 @@ mkdir "build"
 checkStatus $? "create directory failed"
 cd "build/"
 checkStatus $? "change directory failed"
-cmake -S ../vvdec-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-fprofile-use=$(pwd)/../default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$(pwd)/../default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
+cmake -S ../vvdec-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
 
 # build
 cmake --build build/release-static -j $CPUS

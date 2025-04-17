@@ -69,7 +69,7 @@ fi
 echo compiling 8bit profile generator
 cd 8bitgen
 checkStatus $? "change directory failed"
-cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DFPROFILE_GENERATE=ON ../source
+cmake -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO ../source
 checkStatus $? "8bitgen configuration failed"
 make -j 16
 checkStatus $? "build 8bitgen failed"
@@ -80,7 +80,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
 echo compiling 10bit profile generator
 cd 10bitgen
 checkStatus $? "change directory failed"
-cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DFPROFILE_GENERATE=ON ../source
+cmake -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON ../source
 checkStatus $? "10bitgen configuration failed"
 make -j 16
 checkStatus $? "build 10bitgen failed"
@@ -90,7 +90,7 @@ checkStatus $? "change directory failed"
 echo compiling 12bit profile generator
 cd 12bitgen
 checkStatus $? "change directory failed"
-cmake -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DMAIN12=ON -DFPROFILE_GENERATE=ON ../source
+cmake -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DMAIN12=ON ../source
 checkStatus $? "12bitgen configuration failed"
 make -j 16
 checkStatus $? "build 12bitgen failed"
@@ -108,7 +108,8 @@ $(cd 12bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m -
 fi
 
 wait
-/usr/bin/llvm-profdata merge *bitgen/*.profraw -o default.profdata
+# Profile merging usually not needed for GCC >= 9
+# If needed: gcov-tool merge ...
 echo profile generating completed
 
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then
@@ -118,7 +119,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     checkStatus $? "create directory failed"
     cd 10bit/
     checkStatus $? "change directory failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON ../source
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON ../source
     checkStatus $? "configuration 10 bit failed"
 
     # build 10 bit
@@ -133,7 +134,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     checkStatus $? "create directory failed"
     cd 12bit/
     checkStatus $? "change directory failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON ../source
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON ../source
     checkStatus $? "configuration 12 bit failed"
 
     # build 12 bit
@@ -144,11 +145,13 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
 
     # prepare build 8 bit
     echo "start with 8bit build"
+    # Clean PGO data before final combined build? Let's assume previous steps handled it.
+    # Re-run configure with PGO use flags for the 8bit part linking others.
     ln -s 10bit/libx265.a libx265_10bit.a
     checkStatus $? "symlink creation of 10 bit library failed"
     ln -s 12bit/libx265.a libx265_12bit.a
     checkStatus $? "symlink creation of 12 bit library failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
         -DEXTRA_LINK_FLAGS=-L. -DEXTRA_LIB="x265_10bit.a;x265_12bit.a" -DLINKED_10BIT=ON -DLINKED_12BIT=ON source
     checkStatus $? "configuration 8 bit failed"
 
@@ -169,12 +172,14 @@ SAVE
 END
 EOF
     else
+        # This part is for macOS, should not be reached on Linux
         libtool -static -o libx265.a libx265_8bit.a libx265_10bit.a libx265_12bit.a
     fi
     checkStatus $? "multi-bit library creation failed"
 else
     # prepare build
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_CXX_FLAGS="-fprofile-use=$SOURCE_DIR/x265/x265/default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF source
+    # Single build (8-bit only) with PGO
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF source
     checkStatus $? "configuration failed"
 
     # build

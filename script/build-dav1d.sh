@@ -51,7 +51,8 @@ prepareMeson
 # prepare build
 cd "dav1d-$VERSION/"
 checkStatus $? "change directory failed"
-meson build --prefix "$TOOL_DIR" --libdir=lib --default-library=static
+# Enable LTO for dav1d using Meson option
+meson build --prefix "$TOOL_DIR" --libdir=lib --default-library=static -Db_lto=true
 checkStatus $? "configuration failed"
 
 # build

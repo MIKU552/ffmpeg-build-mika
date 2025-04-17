@@ -15,14 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Force LLVM compiler
-export CC=clang
-export CXX=clang++
-export AR=llvm-ar
-export NM=llvm-nm
-export RANLIB=llvm-ranlib
-export LD=lld
-echo "Using LLVM: CC=$CC, CXX=$CXX, AR=$AR, NM=$NM, RANLIB=$RANLIB, LD=$LD"
+# Force GCC compiler
+export CC=gcc
+export CXX=g++
+export AR=ar
+export NM=nm
+export RANLIB=ranlib
+export LD=ld # Use default system linker
+echo "Using GCC: CC=$CC, CXX=$CXX, AR=$AR, NM=$NM, RANLIB=$RANLIB, LD=$LD"
 
 # parse arguments
 SKIP_BUNDLE="YES"
@@ -53,6 +53,7 @@ SKIP_DECKLINK="YES"
 SKIP_VVDEC="NO"
 SKIP_VVENC="NO"
 DECKLINK_SDK=""
+ENABLE_FFMPEG_PGO="YES" # Default to YES, can be overridden
 FFMPEG_SNAPSHOT="YES"
 CPU_LIMIT=""
 for arg in "$@"; do
@@ -165,6 +166,10 @@ for arg in "$@"; do
     if [ $KEY = "-SKIP_VVENC" ]; then
         SKIP_VVENC=$VALUE
         echo "skip vvenc $VALUE"
+    fi
+    if [ $KEY = "-ENABLE_FFMPEG_PGO" ]; then
+        ENABLE_FFMPEG_PGO=$VALUE
+        echo "enable ffmpeg pgo $VALUE"
     fi
     if [ $KEY = "-DECKLINK_SDK" ]; then
         DECKLINK_SDK=$VALUE
@@ -583,7 +588,7 @@ if [ $SKIP_VVENC = "NO" ]; then
     FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-libvvenc"
     echo "NO" > "$LOG_DIR/skip-vvenc"
 else
-    echoSection "skip x265"
+    echoSection "skip vvenc"
     echo "YES" > "$LOG_DIR/skip-vvenc"
 fi
 
@@ -596,7 +601,7 @@ if [ $SKIP_VVDEC = "NO" ]; then
     FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-libvvdec"
     echo "NO" > "$LOG_DIR/skip-vvdec"
 else
-    echoSection "skip x265"
+    echoSection "skip vvdec"
     echo "YES" > "$LOG_DIR/skip-vvdec"
 fi
 
@@ -684,7 +689,7 @@ FFMPEG_LIB_FLAGS="--enable-demuxer=dash $FFMPEG_LIB_FLAGS"
 START_TIME=$(currentTimeInSeconds)
 echoSection "compile ffmpeg"
 # vvdec needs to patch ffmpeg
-$SCRIPT_DIR/build-ffmpeg.sh "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$OUT_DIR" "$CPUS" "$FFMPEG_SNAPSHOT" "$SKIP_VVDEC" "$FFMPEG_LIB_FLAGS" > "$LOG_DIR/build-ffmpeg.log" 2>&1
+$SCRIPT_DIR/build-ffmpeg.sh "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$OUT_DIR" "$CPUS" "$FFMPEG_SNAPSHOT" "$SKIP_VVDEC" "$FFMPEG_LIB_FLAGS" "$ENABLE_FFMPEG_PGO" > "$LOG_DIR/build-ffmpeg.log" 2>&1
 checkStatus $? "build ffmpeg"
 echoDurationInSections $START_TIME
 
@@ -693,11 +698,9 @@ echoDurationInSections $COMPILATION_START_TIME
 
 # relocateDylib
 
-if [ $SKIP_BUNDLE = "NO" ]; then
-    echoSection "bundle result"
-    cd "$OUT_DIR/"
-    checkStatus $? "change directory"
-    zip -9 -r "$WORKING_DIR/ffmpeg-success.zip" *
+if [ "$SKIP_BUNDLE" = "NO" ]; then
+    echoSection "bundle result into tar.gz"
+    tar -czf "$WORKING_DIR/ffmpeg-build.tar.gz" -C "$OUT_DIR" .
 fi
 
 if [ $SKIP_TEST = "NO" ]; then

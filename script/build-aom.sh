@@ -50,7 +50,8 @@ mkdir aom_build
 checkStatus $? "create build directory failed"
 cd aom_build
 checkStatus $? "change build directory failed"
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DENABLE_TESTS=0 ../libaom-$VERSION/
+# Enable LTO for AOM
+cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DENABLE_TESTS=0 -DENABLE_LTO=1 ../libaom-$VERSION/
 checkStatus $? "configuration failed"
 
 # build

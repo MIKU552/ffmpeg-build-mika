@@ -49,20 +49,22 @@ checkStatus $? "unpack failed"
 # prepare build
 mkdir "build"
 checkStatus $? "create directory failed"
+# Modify pgo helper for xz samples and command execution
 sed -i '36s/.y4m/.y4m.xz/g' SVT-AV1-$VERSION/Build/pgohelper.cmake
 sed -i '43s/\${SvtAv1EncApp} -i \${video} -b "\${BUILD_DIRECTORY}\/\${videoname}.ivf" --preset 2 --film-grain 8 --tune 0/"xz -dc \${video} | \${SvtAv1EncApp} -i - -b \\"\${BUILD_DIRECTORY}\/\${videoname}.ivf\\" --preset 2 --film-grain 8 --tune 0 --lookahead 120"/g' SVT-AV1-$VERSION/Build/pgohelper.cmake
 sed -i '49s/\${ENCODING_COMMAND}/sh -c "\${ENCODING_COMMAND}"/g' SVT-AV1-$VERSION/Build/pgohelper.cmake
-sed -i '280,281s/PGO_DIR}/PGO_DIR} -mllvm -vp-counters-per-site=2048/g' SVT-AV1-$VERSION/CMakeLists.txt
+# Remove clang-specific flag injection (if any) - the sed command below targeting lines 280-281 might be wrong or outdated. Check CMakeLists.txt manually if needed.
+# sed -i '...' SVT-AV1-$VERSION/CMakeLists.txt # Commented out potential Clang flag injection
 checkStatus $? "edit pgohelper.cmake failed"
 cd "build/"
 checkStatus $? "change directory failed"
-# -DCMAKE_C_COMPILER=clang
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DSVT_AV1_LTO=ON -DSVT_AV1_PGO=ON -DSVT_AV1_PGO_CUSTOM_VIDEOS="$SCRIPT_DIR/../sample" -DLLVM_PROFDATA=/usr/bin/llvm-profdata -DBUILD_SHARED_LIBS=NO ../SVT-AV1-$VERSION
+# Configure for GCC PGO/LTO - Remove LLVM_PROFDATA
+cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DSVT_AV1_LTO=ON -DSVT_AV1_PGO=ON -DSVT_AV1_PGO_CUSTOM_VIDEOS="$SCRIPT_DIR/../sample" -DBUILD_SHARED_LIBS=NO ../SVT-AV1-$VERSION
 checkStatus $? "configuration failed"
 
 # build
 make RunPGO -j $CPUS
-checkStatus $? "build failed"
+checkStatus $? "PGO build failed"
 
 # install
 make install

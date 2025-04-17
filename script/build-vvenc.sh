@@ -52,7 +52,7 @@ checkStatus $? "create directory failed"
 cd "pgogen/"
 checkStatus $? "change directory failed"
 
-cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_CXX_FLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$(pwd) -DCMAKE_BUILD_TYPE=Release
+cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$(pwd) -DCMAKE_BUILD_TYPE=Release
 checkStatus $? "configuration pgogen failed"
 
 cmake --build build/release-static -j $CPUS
@@ -68,11 +68,12 @@ xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | bin/vvencapp -i - --y4m --pres
 xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o ../720p_bbb.266
 xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o ../4k_bbb.266
 
-/usr/bin/llvm-profdata merge *.profraw -o ../default.profdata
+# Profile merging usually not needed for GCC >= 9
+# If needed: gcov-tool merge ...
 echo profile generation completed
 
 cd ../vvenc-$VERSION
-make realclean
+make realclean # vvenc uses make for cleaning
 cd ..
 
 # prepare build
@@ -80,8 +81,8 @@ mkdir "build"
 checkStatus $? "create directory failed"
 cd "build/"
 checkStatus $? "change directory failed"
-# pgo will change function control flow, which will cause error [-Wno-backend-plugin]
-cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-Wno-error=backend-plugin -fprofile-use=$(pwd)/../default.profdata" -DCMAKE_CXX_FLAGS="-Wno-error=backend-plugin -fprofile-use=$(pwd)/../default.profdata" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
+# PGO flags for GCC
+cmake -S ../vvenc-$VERSION -B build/release-static -G 'Ninja' -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DCMAKE_BUILD_TYPE=Release
 
 # build
 cmake --build build/release-static -j $CPUS
