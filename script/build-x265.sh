@@ -40,7 +40,7 @@ cd "x265/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://bitbucket.org/multicoreware/x265_git/get/$VERSION.tar.gz "x265.tar.gz"
+download http://ftp.videolan.org/pub/videolan/x265/x265_$VERSION.tar.gz "x265.tar.gz"
 checkStatus $? "download of x265 failed"
 
 # unpack
@@ -99,12 +99,12 @@ checkStatus $? "change directory failed"
 fi
 
 echo generating profiles simutaneously
-$(cd 8bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26) && echo 8bit &
+$(cd 8bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26) && echo 8bit &
 
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then
-$(cd 10bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26) && echo 10bit &
+$(cd 10bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26) && echo 10bit &
 
-$(cd 12bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26) && echo 12bit &
+$(cd 12bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26) && echo 12bit &
 fi
 
 wait

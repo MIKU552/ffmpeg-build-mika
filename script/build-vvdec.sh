@@ -39,7 +39,7 @@ cd "vvdec/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/fraunhoferhhi/vvdec/archive/refs/tags/v$VERSION.tar.gz "vvdec.tar.gz"
+download https://gh-proxy.com/https://github.com/fraunhoferhhi/vvdec/archive/$VERSION.tar.gz "vvdec.tar.gz"
 checkStatus $? "download failed"
 
 # unpack
