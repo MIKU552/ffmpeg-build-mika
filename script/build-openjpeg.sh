@@ -38,7 +38,7 @@ cd "openjpeg/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/uclouvain/openjpeg/archive/refs/tags/v$VERSION.tar.gz "openjpeg.tar.gz"
+download https://gh-proxy.com/https://github.com/uclouvain/openjpeg/archive/refs/tags/v$VERSION.tar.gz "openjpeg.tar.gz"
 checkStatus $? "download failed"
 
 # unpack

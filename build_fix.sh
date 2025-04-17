@@ -140,15 +140,17 @@ if [ $SKIP_TEST = "NO" ]; then
 fi
 
 # Set environment variables globally for dependency builds
-echo "Exporting paths for build environment:"
+echo "Exporting paths for build environment (with -fPIC):"
 echo "  Include Path: ${TOOL_DIR}/include"
 echo "  Library Path: ${TOOL_DIR}/lib"
 echo "  PkgConfig Path: ${TOOL_DIR}/lib/pkgconfig"
 
-export CFLAGS="-I${TOOL_DIR}/include ${CFLAGS}"
-export CPPFLAGS="-I${TOOL_DIR}/include ${CPPFLAGS}" # Often CFLAGS is enough, but CPPFLAGS is specific
-export LDFLAGS="-L${TOOL_DIR}/lib ${LDFLAGS}"
-export PKG_CONFIG_PATH="${TOOL_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+# Set flags directly, assuming no critical external flags need preserving for this build
+export CFLAGS="-I${TOOL_DIR}/include -fPIC"
+export CPPFLAGS="-I${TOOL_DIR}/include -fPIC" # Often same as CFLAGS for includes
+export CXXFLAGS="-I${TOOL_DIR}/include -fPIC"
+export LDFLAGS="-L${TOOL_DIR}/lib"
+export PKG_CONFIG_PATH="${TOOL_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH}" # Appending PKG_CONFIG_PATH is usually safe/intended
 
 # detect CPU threads (nproc for linux, sysctl for osx)
 CPUS=1

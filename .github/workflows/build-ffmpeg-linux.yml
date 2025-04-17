@@ -38,7 +38,7 @@ jobs:
       # 4. Run your build script
       - name: Run Build Script
         id: build_script # Assign an ID to the step
-        run: ./build.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES # Skip tests in CI maybe?
+        run: ./build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES # Skip tests in CI maybe?
 
       # 5. Upload Build Artifacts (Only on Success)
       - name: Upload Build Artifacts

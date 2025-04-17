@@ -38,7 +38,7 @@ cd "libass/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/libass/libass/releases/download/$VERSION/libass-$VERSION.tar.gz "libass.tar.gz"
+download https://gh-proxy.com/https://github.com/libass/libass/releases/download/$VERSION/libass-$VERSION.tar.gz "libass.tar.gz"
 checkStatus $? "download failed"
 
 # unpack

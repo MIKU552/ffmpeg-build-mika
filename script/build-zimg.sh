@@ -38,7 +38,7 @@ cd "zimg/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz "zimg.tar.gz"
+download https://gh-proxy.com/https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz "zimg.tar.gz"
 checkStatus $? "download failed"
 
 # unpack
