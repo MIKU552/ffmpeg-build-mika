@@ -44,7 +44,7 @@ checkStatus $? "create directory failed"
 download http://www.nasm.us/pub/nasm/releasebuilds/$VERSION/nasm-$VERSION.tar.gz nasm.tar.gz
 if [ $? -ne 0 ]; then
     echo "download failed; start download from github server"
-    download https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-$VERSION.tar.gz nasm.tar.gz
+    download https://gh-proxy.com/https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-$VERSION.tar.gz nasm.tar.gz
     checkStatus $? "download failed"
 fi
 
@@ -70,9 +70,9 @@ make -j $CPUS
 checkStatus $? "build failed"
 
 # --- FIX: Create dummy man page to prevent install error ---
-echo "Creating dummy nasm.1 to prevent install error"
-touch nasm.1
-touch ndisasm.1
+# echo "Creating dummy nasm.1 to prevent install error"
+# touch nasm.1
+# touch ndisasm.1
 # --- End FIX ---
 
 # install
