@@ -41,7 +41,7 @@ cd "zvbi/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/zapping-vbi/zvbi/archive/refs/tags/v$VERSION.tar.gz "zvbi.tar.gz"
+download https://gh-proxy.com/https://github.com/zapping-vbi/zvbi/archive/refs/tags/v$VERSION.tar.gz "zvbi.tar.gz"
 checkStatus $? "download failed"
 
 # unpack
