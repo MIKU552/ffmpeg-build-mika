@@ -38,7 +38,7 @@ cd "libwebp/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/webmproject/libwebp/archive/refs/tags/v$VERSION.tar.gz "libwebp.tar.gz"
+download https://gh-proxy.com/https://github.com/webmproject/libwebp/archive/refs/tags/v$VERSION.tar.gz "libwebp.tar.gz"
 checkStatus $? "download failed"
 
 # unpack
