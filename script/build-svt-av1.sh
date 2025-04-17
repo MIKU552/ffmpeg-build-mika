@@ -39,7 +39,7 @@ cd "svt-av1/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/$VERSION/SVT-AV1-$VERSION.tar.gz "SVT-AV1.tar.gz"
+download https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v$VERSION/SVT-AV1-v$VERSION.tar.gz "SVT-AV1.tar.gz"
 checkStatus $? "download failed"
 
 # unpack
@@ -50,9 +50,9 @@ checkStatus $? "unpack failed"
 mkdir "build"
 checkStatus $? "create directory failed"
 # Modify pgo helper for xz samples and command execution
-sed -i '36s/.y4m/.y4m.xz/g' SVT-AV1-$VERSION/Build/pgohelper.cmake
-sed -i '43s/\${SvtAv1EncApp} -i \${video} -b "\${BUILD_DIRECTORY}\/\${videoname}.ivf" --preset 2 --film-grain 8 --tune 0/"xz -dc \${video} | \${SvtAv1EncApp} -i - -b \\"\${BUILD_DIRECTORY}\/\${videoname}.ivf\\" --preset 2 --film-grain 8 --tune 0 --lookahead 120"/g' SVT-AV1-$VERSION/Build/pgohelper.cmake
-sed -i '49s/\${ENCODING_COMMAND}/sh -c "\${ENCODING_COMMAND}"/g' SVT-AV1-$VERSION/Build/pgohelper.cmake
+sed -i '36s/.y4m/.y4m.xz/g' SVT-AV1-v$VERSION/Build/pgohelper.cmake
+sed -i '43s/\${SvtAv1EncApp} -i \${video} -b "\${BUILD_DIRECTORY}\/\${videoname}.ivf" --preset 2 --film-grain 8 --tune 0/"xz -dc \${video} | \${SvtAv1EncApp} -i - -b \\"\${BUILD_DIRECTORY}\/\${videoname}.ivf\\" --preset 2 --film-grain 8 --tune 0 --lookahead 120"/g' SVT-AV1-v$VERSION/Build/pgohelper.cmake
+sed -i '49s/\${ENCODING_COMMAND}/sh -c "\${ENCODING_COMMAND}"/g' SVT-AV1-v$VERSION/Build/pgohelper.cmake
 # Remove clang-specific flag injection (if any) - the sed command below targeting lines 280-281 might be wrong or outdated. Check CMakeLists.txt manually if needed.
 # sed -i '...' SVT-AV1-$VERSION/CMakeLists.txt # Commented out potential Clang flag injection
 checkStatus $? "edit pgohelper.cmake failed"

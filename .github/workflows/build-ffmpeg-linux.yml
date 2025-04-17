@@ -1,62 +1,60 @@
-name: Build FFmpeg on Linux (with PGO)
+name: FFmpeg Build CI
 
-on:
-  push:
-    branches: [ main ] # 当 main 分支有推送时触发
-  pull_request:
-    branches: [ main ] # 当有针对 main 分支的 Pull Request 时触发
-  workflow_dispatch: # 允许手动触发
+on: [push, pull_request] # Adjust triggers as needed
 
 jobs:
-  build:
-    runs-on: ubuntu-latest # 使用最新的 Ubuntu Linux 运行环境
+  build-linux:
+    runs-on: ubuntu-24.04 # Or your desired Linux runner
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4 # 检出你的代码
+      # 1. Checkout the repository including LFS files
+      - name: Checkout repository
+        uses: actions/checkout@v4 # Use a current version like v4
+        with:
+          lfs: true # <-- This line enables Git LFS download
 
-    - name: Set up environment variables # 设置环境变量，确保工具链在 PATH 中
-      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      # 2. Install system dependencies (Make sure git-lfs is included or pre-installed)
+      #    GitHub hosted runners usually have git-lfs pre-installed.
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential gcc g++ binutils make cmake ninja-build pkg-config \
+            curl tar bzip2 xz-utils python3 python3-pip python3-venv nasm git-lfs \
+            # Add any other necessary packages like autoconf, libtool if needed by specific autogen.sh scripts
+          # Verify LFS install if needed: git lfs version
 
-    - name: Install Build Dependencies
-      run: |
-        sudo apt-get update -y
-        sudo apt-get install -y --no-install-recommends \
-          cmake nasm ninja-build pkg-config \
-          python3 python3-pip python3-venv python3-virtualenv \
-          curl wget patch tar gzip bzip2 xz-utils zip \
-          autoconf automake libtool \
-          clang llvm llvm-18-tools\
-          gperf gettext autopoint
-        # 安装 Rust 和 cargo-c (用于 rav1e)
-        curl https://sh.rustup.rs -sSf | sh -s -- -y
-        cargo install cargo-c
+      # 3. Install Rust/Cargo if needed by dependencies (like rav1e)
+      - name: Install Rust and cargo-c
+        uses: dtolnay/rust-toolchain@stable
+        # Add components if needed, e.g., with: components: rustfmt, clippy
+      - run: cargo install cargo-c --locked # Install cargo-c for rav1e
 
-    - name: Make build script executable
-      run: chmod +x build.sh
+      # (Optional) Explicitly pull LFS files if needed, though lfs:true usually suffices
+      # - name: Pull Git LFS files
+      #   run: git lfs pull
 
-  # ... （之前的步骤，包括运行 build.sh） ...
+      # 4. Run your build script
+      - name: Run Build Script
+        id: build_script # Assign an ID to the step
+        run: ./build.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES # Skip tests in CI maybe?
 
-    - name: Run FFmpeg Build Script
-      id: build_step # 给这一步一个ID，虽然这里没直接用，但有时有用
-      run: ./build.sh -SKIP_TEST=YES -SKIP_BUNDLE=YES
+      # 5. Upload Build Artifacts (Only on Success)
+      - name: Upload Build Artifacts
+        if: success() # Run only if previous steps succeeded
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-linux-gcc-build
+          path: |
+            ffmpeg-build.tar.gz
+            log/ # Upload logs even on success for inspection
+          if-no-files-found: error # Optional: fail if the bundle is missing
 
-    - name: Upload Logs on Failure # <--- 新增步骤
-      if: failure() # 关键：仅在前面步骤失败时运行
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-logs-${{ github.sha }} # 产物名称
-        path: log/ # 上传整个 log 目录
-        retention-days: 7 # 可选：日志保留天数
-
-    - name: Upload FFmpeg Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ffmpeg-linux-build-${{ github.sha }} # 为构建产物命名
-        path: |
-          out/bin/ffmpeg
-          out/bin/ffprobe
-          out/bin/ffplay
-          out/lib/*.so* # 上传编译好的二进制文件和共享库
-          log # 同时上传日志方便调试
-        retention-days: 5 # 可选：设置产物保留天数
+      # 6. Upload Logs (Only on Failure) - ADD THIS STEP
+      - name: Upload Logs on Failure
+        if: failure() # Run only if any previous step failed
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-build-logs-on-failure-(ubuntu-24.04-gcc) # Descriptive name
+          path: log/
+          if-no-files-found: ignore # Don't error if log dir is empty or missing
