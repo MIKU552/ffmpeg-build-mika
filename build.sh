@@ -226,6 +226,17 @@ if [ $SKIP_TEST = "NO" ]; then
     checkStatus $? "unable to create test output directory"
 fi
 
+# Set environment variables globally for dependency builds
+echo "Exporting paths for build environment:"
+echo "  Include Path: ${TOOL_DIR}/include"
+echo "  Library Path: ${TOOL_DIR}/lib"
+echo "  PkgConfig Path: ${TOOL_DIR}/lib/pkgconfig"
+
+export CFLAGS="-I${TOOL_DIR}/include ${CFLAGS}"
+export CPPFLAGS="-I${TOOL_DIR}/include ${CPPFLAGS}" # Often CFLAGS is enough, but CPPFLAGS is specific
+export LDFLAGS="-L${TOOL_DIR}/lib ${LDFLAGS}"
+export PKG_CONFIG_PATH="${TOOL_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
 # detect CPU threads (nproc for linux, sysctl for osx)
 CPUS=1
 if [ "$CPU_LIMIT" != "" ]; then
