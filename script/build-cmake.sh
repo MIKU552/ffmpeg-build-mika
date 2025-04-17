@@ -64,7 +64,7 @@ elif [ "$CURRENT_OS" = "Linux" ] && [ "$CURRENT_ARCH" = "aarch64" ]; then
 else
     echo "no supported os detected: ${CURRENT_OS} ${CURRENT_ARCH}"
 fi
-download https://github.com/Kitware/CMake/releases/download/v${VERSION_PATCH}/cmake-${VERSION_PATCH}-${CMAKE_OS}-${CMAKE_ARCH}.tar.gz "cmake-release.tar.gz"
+download https://gh-proxy.com/https://github.com/Kitware/CMake/releases/download/v${VERSION_PATCH}/cmake-${VERSION_PATCH}-${CMAKE_OS}-${CMAKE_ARCH}.tar.gz "cmake-release.tar.gz"
 if [ $? -ne 0 ]; then
     echo "download of cmake release failed; continue with local build"
 else

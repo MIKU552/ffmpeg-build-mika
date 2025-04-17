@@ -38,7 +38,7 @@ cd "openssl/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/openssl/openssl/releases/download/openssl-$VERSION/openssl-$VERSION.tar.gz "openssl.tar.gz"
+download https://gh-proxy.com/https://github.com/openssl/openssl/releases/download/openssl-$VERSION/openssl-$VERSION.tar.gz "openssl.tar.gz"
 checkStatus $? "download failed"
 
 # unpack

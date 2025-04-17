@@ -38,7 +38,7 @@ cd "fribidi/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/fribidi/fribidi/releases/download/v$VERSION/fribidi-$VERSION.tar.xz "fribidi.tar.xz"
+download https://gh-proxy.com/https://github.com/fribidi/fribidi/releases/download/v$VERSION/fribidi-$VERSION.tar.xz "fribidi.tar.xz"
 checkStatus $? "download failed"
 
 # unpack
