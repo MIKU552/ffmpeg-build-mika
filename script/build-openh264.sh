@@ -43,7 +43,7 @@ cd "openh264/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/cisco/openh264/archive/v$VERSION.tar.gz "openh264.tar.gz"
+download https://gh-proxy.com/https://github.com/cisco/openh264/archive/v$VERSION.tar.gz "openh264.tar.gz"
 checkStatus $? "download failed"
 
 # unpack
