@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright 2021 Martin Riedl
 # Copyright 2024 Hayden Zheng
@@ -125,6 +125,9 @@ ORIGINAL_CXXFLAGS="${CXXFLAGS}"
 ORIGINAL_LDFLAGS="${LDFLAGS}"
 ORIGINAL_CPPFLAGS="${CPPFLAGS}"
 ORIGINAL_PKG_CONFIG_PATH="${PKG_CONFIG_PATH}"
+# Store original LD_LIBRARY_PATH too, if it exists
+ORIGINAL_LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
+
 
 if [ "$ENABLE_FFMPEG_PGO" = "YES" ]; then
     echoSection "FFmpeg PGO Step 1: Configure for Instrumented Binary"
@@ -145,7 +148,7 @@ if [ "$ENABLE_FFMPEG_PGO" = "YES" ]; then
     # --- End Debug Output ---
 
     ./configure $CONFIGURE_ARGS # Configure using base flags
-    checkStatus $? "PGO configure (generate) failed" # Rename this check maybe? Configure didn't fail *because* of PGO flags yet.
+    checkStatus $? "PGO configure (generate) failed"
 
     # NOW add PGO flags before running make for the instrumented build
     echo "Adding -fprofile-generate flags for PGO build..."
@@ -161,17 +164,41 @@ if [ "$ENABLE_FFMPEG_PGO" = "YES" ]; then
 
     echoSection "FFmpeg PGO Step 2: Training Run"
     # Check if sample files exist
-    if [ ! -d "$SAMPLE_DIR" ] || [ -z "$(ls -A "$SAMPLE_DIR"/*.{y4m.xz,266,mp4} 2>/dev/null)" ]; then
-         echo "Warning: Sample directory '$SAMPLE_DIR' is empty or does not contain expected files (*.y4m.xz, *.266, *.mp4). Skipping FFmpeg PGO training."
+    # Use find instead of ls with brace expansion for POSIX compatibility
+    if [ ! -d "$SAMPLE_DIR" ] || [ -z "$(find "$SAMPLE_DIR" -maxdepth 1 \( -name '*.y4m.xz' -o -name '*.266' -o -name '*.mp4' \) -print -quit)" ]; then
+         echo "Warning: Sample directory '$SAMPLE_DIR' does not exist or does not contain expected files (*.y4m.xz, *.266, *.mp4). Skipping FFmpeg PGO training."
          ENABLE_FFMPEG_PGO="NO_TRAINING_DATA" # Use a specific state instead of just NO
     else
+        # --- Add LD_LIBRARY_PATH for Training Run ---
+        echo "Setting LD_LIBRARY_PATH for PGO training run..."
+        # Add current build directory (contains ffmpeg executable and .so symlinks/files)
+        # Also add subdirs where libraries are actually built, just in case symlinks aren't made yet
+        FFMPEG_BUILD_LIBS_PATH="$(pwd):$(pwd)/libavcodec:$(pwd)/libavdevice:$(pwd)/libavfilter:$(pwd)/libavformat:$(pwd)/libavutil:$(pwd)/libpostproc:$(pwd)/libswresample:$(pwd)/libswscale"
+        export LD_LIBRARY_PATH="${FFMPEG_BUILD_LIBS_PATH}:${ORIGINAL_LD_LIBRARY_PATH}"
+        echo "DEBUG: LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
+        # --- End LD_LIBRARY_PATH Setting ---
+
         echo "Running training commands (may take a while)..."
-        # --- Add representative training commands here ---
-        ./ffmpeg -y -i "$SAMPLE_DIR/stefan_sif.y4m.xz" -an -frames:v 30 -c:v libx264 -preset fast -f null -
+        # --- Use pipe for .xz inputs ---
+        echo "Running training command 1..."
+        xz -dc "$SAMPLE_DIR/stefan_sif.y4m.xz" | ./ffmpeg -y -f yuv4mpegpipe -i - -an -frames:v 30 -c:v libx264 -preset fast -f null -
         checkStatus $? "PGO training run 1 failed"
-        ./ffmpeg -y -i "$SAMPLE_DIR/taikotemoto.y4m.xz" -an -frames:v 30 -c:v libx265 -preset fast -f null -
+
+        echo "Running training command 2..."
+        xz -dc "$SAMPLE_DIR/taikotemoto.y4m.xz" | ./ffmpeg -y -f yuv4mpegpipe -i - -an -frames:v 30 -c:v libx265 -preset fast -f null -
         checkStatus $? "PGO training run 2 failed"
+
+        # --- Modify other training commands similarly if they use .xz ---
+        # Example: If you had a command using 4k_bbb.y4m.xz
+        # xz -dc "$SAMPLE_DIR/4k_bbb.y4m.xz" | ./ffmpeg -y -f yuv4mpegpipe -i - ...other options...
+        # Example: If using a non-xz file like an mp4, keep it as is:
+        # ./ffmpeg -y -i "$SAMPLE_DIR/some_video.mp4" -c copy -f null -
         # --- End of training commands ---
+
+        # --- Restore LD_LIBRARY_PATH (optional but good practice) ---
+        export LD_LIBRARY_PATH="${ORIGINAL_LD_LIBRARY_PATH}"
+        echo "DEBUG: Restored LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
+        # --- End Restore ---
 
         echoSection "FFmpeg PGO Step 3: Merge Profile Data"
         echo "GCC PGO profile data generated in build directory (.gcda files)."
@@ -229,10 +256,7 @@ elif [ "$ENABLE_FFMPEG_PGO" = "NO" ]; then
     export PKG_CONFIG_PATH="${ORIGINAL_PKG_CONFIG_PATH}"
 
     # Clean only if skipping PGO after failed training data check
-    if [ "$ENABLE_FFMPEG_PGO" = "NO_TRAINING_DATA" ]; then # Check the original request state
-         make clean
-         checkStatus $? "make clean failed (PGO skipped)"
-    fi
+    # The current logic runs 'make clean' before this block if PGO was attempted (ENABLE_FFMPEG_PGO=YES initially)
 
     # Configure for the final non-PGO build
     echo "DEBUG: Running final configure (No PGO) with:"

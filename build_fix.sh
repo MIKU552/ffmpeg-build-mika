@@ -391,7 +391,8 @@ echoDurationInSections $COMPILATION_START_TIME
 
 if [ "$SKIP_BUNDLE" = "NO" ]; then
     echoSection "bundle result into tar.gz"
-    tar -czf "$WORKING_DIR/ffmpeg-build.tar.gz" -C "$OUT_DIR" .
+    # Exclude hidden files/directories
+    tar --exclude='.*' -czf "$WORKING_DIR/ffmpeg-build.tar.gz" -C "$OUT_DIR" .
     checkStatus $? "bundling failed"
 fi
 
