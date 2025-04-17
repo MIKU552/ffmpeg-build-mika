@@ -391,9 +391,24 @@ echoDurationInSections $COMPILATION_START_TIME
 
 if [ "$SKIP_BUNDLE" = "NO" ]; then
     echoSection "bundle result into tar.gz"
-    # Exclude hidden files/directories
-    tar --exclude='.*' -czf "$WORKING_DIR/ffmpeg-build.tar.gz" -C "$OUT_DIR" .
-    checkStatus $? "bundling failed"
+
+    # Check if OUT_DIR is non-empty before attempting to bundle
+    if [ -z "$(ls -A "$OUT_DIR")" ]; then
+        echo "ERROR: OUT_DIR ($OUT_DIR) is empty or does not exist. Skipping bundling."
+        # Decide if this should be a fatal error
+        # exit 1
+    else
+        # Use a subshell to change directory and ensure * expands correctly
+        echo "Archiving non-hidden contents of $OUT_DIR using subshell..."
+        (cd "$OUT_DIR" && tar -czf "$WORKING_DIR/ffmpeg-build.tar.gz" *)
+        checkStatus $? "bundling failed"
+
+        # --- Add Debugging: Check created tarball contents ---
+        echo "DEBUG: Listing contents of created tarball:"
+        tar -tzf "$WORKING_DIR/ffmpeg-build.tar.gz"
+        echo "-------------------------------------------"
+        # --- End Debugging ---
+    fi
 fi
 
 if [ $SKIP_TEST = "NO" ]; then
