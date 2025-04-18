@@ -38,11 +38,11 @@ cd "fontconfig/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://www.freedesktop.org/software/fontconfig/release/fontconfig-$VERSION.tar.gz "fontconfig.tar.gz"
+download https://www.freedesktop.org/software/fontconfig/release/fontconfig-$VERSION.tar.xz "fontconfig.tar.xz"
 checkStatus $? "download failed"
 
 # unpack
-tar -zxf "fontconfig.tar.gz"
+tar -xvf "fontconfig.tar.xz"
 checkStatus $? "unpack failed"
 cd "fontconfig-$VERSION/"
 checkStatus $? "change directory failed"

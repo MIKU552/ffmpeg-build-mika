@@ -38,13 +38,11 @@ cd "libtheora/"
 checkStatus $? "change directory failed"
 
 # download source
-download http://downloads.xiph.org/releases/theora/libtheora-$VERSION.tar.bz2 "libtheora.tar.bz2"
+download http://downloads.xiph.org/releases/theora/libtheora-$VERSION.tar.xz "libtheora.tar.xz"
 checkStatus $? "download failed"
 
 # unpack
-bunzip2 "libtheora.tar.bz2"
-checkStatus $? "unpack (bunzip2)"
-tar -xf "libtheora.tar"
+tar -xvf "libtheora.tar.xz"
 checkStatus $? "unpack (tar)"
 cd "libtheora-$VERSION/"
 checkStatus $? "change directory failed"

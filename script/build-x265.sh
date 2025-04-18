@@ -40,7 +40,7 @@ cd "x265/"
 checkStatus $? "change directory failed"
 
 # download source
-download http://ftp.videolan.org/pub/videolan/x265/x265_$VERSION.tar.gz "x265.tar.gz"
+download https://bitbucket.org/multicoreware/x265_git/get/$VERSION.tar.gz "x265.tar.gz"
 checkStatus $? "download of x265 failed"
 
 # unpack
@@ -50,6 +50,31 @@ tar -zxf "x265.tar.gz" -C x265 --strip-components=1
 checkStatus $? "unpack failed"
 cd "x265/"
 checkStatus $? "change directory failed"
+
+# --- FIX: Add includes for CheckSymbolExists and CheckCompilerFlag modules ---
+echo "Patching x265 source/CMakeLists.txt to include needed Check modules..."
+# Patch the CMakeLists.txt file inside the 'source' subdirectory
+X265_MAIN_CMAKE_PATH="source/CMakeLists.txt" # Path relative to current dir
+if [ -f "$X265_MAIN_CMAKE_PATH" ]; then
+    # Use a temporary file for awk output redirection safety
+    awk '
+    # Find the line with project(...) and insert includes after it
+    /project *\(.*\)/ {
+        print; # Print the project() line itself
+        print "include(CheckIncludeFiles)"; # Add CheckIncludeFiles
+        print "include(CheckSymbolExists)";  # Add CheckSymbolExists
+        print "include(CheckCCompilerFlag)"; # Add CheckCCompilerFlag
+        print "include(CheckCXXCompilerFlag)";# Add CheckCXXCompilerFlag
+        next # Skip default printing of the project() line to avoid duplicates
+    }
+    { print } # Print all other lines
+    ' "$X265_MAIN_CMAKE_PATH" > "$X265_MAIN_CMAKE_PATH.tmp" && mv "$X265_MAIN_CMAKE_PATH.tmp" "$X265_MAIN_CMAKE_PATH"
+    checkStatus $? "Patching CMakeLists.txt failed"
+    echo "CMakeLists.txt patched."
+else
+    echo "Warning: $X265_MAIN_CMAKE_PATH not found, skipping patch."
+fi
+# --- End FIX ---
 
 # generate pgo profile
 sed -i '19s/.*/cmake_policy(SET CMP0069 NEW)/' source/CMakeLists.txt
@@ -69,7 +94,7 @@ fi
 echo compiling 8bit profile generator
 cd 8bitgen
 checkStatus $? "change directory failed"
-cmake -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO ../source
+cmake -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DCMAKE_ASM_NASM_FLAGS="-DENABLE_CET=0" ../source
 checkStatus $? "8bitgen configuration failed"
 make -j 16
 checkStatus $? "build 8bitgen failed"
@@ -80,7 +105,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
 echo compiling 10bit profile generator
 cd 10bitgen
 checkStatus $? "change directory failed"
-cmake -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON ../source
+cmake -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DCMAKE_ASM_NASM_FLAGS="-DENABLE_CET=0" ../source
 checkStatus $? "10bitgen configuration failed"
 make -j 16
 checkStatus $? "build 10bitgen failed"
@@ -90,7 +115,7 @@ checkStatus $? "change directory failed"
 echo compiling 12bit profile generator
 cd 12bitgen
 checkStatus $? "change directory failed"
-cmake -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DMAIN12=ON ../source
+cmake -DCMAKE_C_FLAGS="-fprofile-generate" -DCMAKE_CXX_FLAGS="-fprofile-generate" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DHIGH_BIT_DEPTH=ON -DMAIN12=ON -DCMAKE_ASM_NASM_FLAGS="-DENABLE_CET=0" ../source
 checkStatus $? "12bitgen configuration failed"
 make -j 16
 checkStatus $? "build 12bitgen failed"
@@ -119,7 +144,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     checkStatus $? "create directory failed"
     cd 10bit/
     checkStatus $? "change directory failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON ../source
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DCMAKE_ASM_NASM_FLAGS="-DENABLE_CET=0" ../source
     checkStatus $? "configuration 10 bit failed"
 
     # build 10 bit
@@ -134,7 +159,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     checkStatus $? "create directory failed"
     cd 12bit/
     checkStatus $? "change directory failed"
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON ../source
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF -DHIGH_BIT_DEPTH=ON -DMAIN12=ON -DCMAKE_ASM_NASM_FLAGS="-DENABLE_CET=0" ../source
     checkStatus $? "configuration 12 bit failed"
 
     # build 12 bit
@@ -152,7 +177,7 @@ if [ $SKIP_X265_MULTIBIT = "NO" ]; then
     ln -s 12bit/libx265.a libx265_12bit.a
     checkStatus $? "symlink creation of 12 bit library failed"
     cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
-        -DEXTRA_LINK_FLAGS=-L. -DEXTRA_LIB="x265_10bit.a;x265_12bit.a" -DLINKED_10BIT=ON -DLINKED_12BIT=ON source
+        -DEXTRA_LINK_FLAGS=-L. -DEXTRA_LIB="x265_10bit.a;x265_12bit.a" -DLINKED_10BIT=ON -DLINKED_12BIT=ON -DCMAKE_ASM_NASM_FLAGS="-DENABLE_CET=0" source
     checkStatus $? "configuration 8 bit failed"
 
     # build 8 bit
@@ -179,7 +204,7 @@ EOF
 else
     # prepare build
     # Single build (8-bit only) with PGO
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF source
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DCMAKE_C_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_CXX_FLAGS="-fprofile-use -Wno-missing-profile" -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DCMAKE_ASM_NASM_FLAGS="-DENABLE_CET=0" source
     checkStatus $? "configuration failed"
 
     # build

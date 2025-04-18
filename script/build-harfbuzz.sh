@@ -38,7 +38,7 @@ cd "harfbuzz/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://github.com/harfbuzz/harfbuzz/releases/download/$VERSION/harfbuzz-$VERSION.tar.xz "harfbuzz.tar.xz"
+download https://gh-proxy.com/https://github.com/harfbuzz/harfbuzz/releases/download/$VERSION/harfbuzz-$VERSION.tar.xz "harfbuzz.tar.xz"
 checkStatus $? "download failed"
 
 # unpack
