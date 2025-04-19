@@ -22,7 +22,7 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 . "$HOME/.cargo/env"
 cargo install cargo-c --locked
 ```
-### 编译命令： \
+### 编译命令：
 ```
 mkdir build
 ../build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
