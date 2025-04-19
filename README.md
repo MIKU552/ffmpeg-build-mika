@@ -25,6 +25,7 @@ cargo install cargo-c --locked
 ### 编译命令：
 ```
 mkdir build
+cd build
 ../build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
 ```
 
