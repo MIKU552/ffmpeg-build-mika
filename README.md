@@ -4,9 +4,9 @@ This script was made to compile static FFmpeg with common codecs for Linux and m
 ## Compatibility with Linux
 This script is currently not compatible with Linux, because of the difference in sed's syntax, clang/gnu, and the behavior of CMake. I will try to work on it later after finishing my main development goals.
 
-已在Fedora 43, Ubuntu 25.04, Debian 12.10上测试能够正常使用 \
-\
-### 依赖安装： \
+已在Fedora 43, Ubuntu 25.04, Debian 12.10上测试能够正常使用 
+
+### 依赖安装： 
 Debian/Ubuntu:  
 ```
 apt install -y --no-install-recommends git git-lfs build-essential cmake nasm ninja-build pkg-config python3 python3-pip python3-venv python3-virtualenv curl wget patch tar gzip bzip2 xz-utils zip autoconf automake libtool gperf gettext autopoint rustc cargo liblzma-dev libnuma-dev libssl-dev
