@@ -1,0 +1,72 @@
+name: Build FFmpeg on macOS
+
+# 触发条件：推送到 main 分支时，或者手动触发 (Workflow Dispatch)
+on:
+  push:
+    branches: [ CLANGMACOS ] # 修改为你的主分支名，例如 master
+  workflow_dispatch:
+
+jobs:
+  build:
+    # 指定运行环境：使用 GitHub 提供的 macOS ARM64 runner (macos-14)
+    # 如果需要 Intel，可以使用 macos-13 或 macos-latest (可能需要检查 GitHub 文档确认架构)
+    runs-on: macos-15
+
+    steps:
+      # 第一步：签出你的代码库
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 第二步：安装或更新 Homebrew (通常已预装，更新一下确保最新)
+      - name: Update Homebrew
+        run: brew update
+
+      # 第三步：安装必要的系统依赖 (根据之前的错误，需要 automake 和 autoconf)
+      - name: Install prerequisites (Autotools)
+        run: brew install automake autoconf
+
+      # 第四步：设置 Python 环境 (选择一个版本)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # 或者其他你希望的版本
+
+      # 第五步：安装 Python 的 virtualenv 包
+      - name: Install Python virtualenv package
+        run: pip install virtualenv
+
+      # 第六步：设置 Rust 环境 (用于编译 rav1e)
+      - name: Set up Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable # 使用稳定版 Rust
+          override: true
+          components: rustfmt, clippy # 可选：添加其他组件
+
+      # 第七步：安装 cargo-c (用于 rav1e 的 cinstall)
+      - name: Install cargo-c
+        run: cargo install cargo-c
+
+      # 第八步：运行主构建脚本
+      # 注意：确保你的仓库中的 build.sh 和 script/* 文件包含了之前解决问题的修改！
+      # -SKIP_TEST=YES 可以节省 Action 的运行时间
+      # -SKIP_BUNDLE=NO 可能不需要，因为我们会用 upload-artifact 来打包
+      - name: Run FFmpeg build script
+        run: ./build.sh -SKIP_TEST=YES -SKIP_BUNDLE=YES # 根据需要调整参数
+
+      # 第九步：上传构建产物 (编译好的 FFmpeg 文件)
+      - name: Upload FFmpeg build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # 为产物命名，可以包含 runner 架构信息
+          name: ffmpeg-macos-${{ runner.arch }}
+          # 指定要上传的文件或目录路径
+          path: |
+            out/bin/ffmpeg
+            out/bin/ffprobe
+            out/bin/ffplay
+            out/lib/*.dylib
+          # 如果找不到文件则报错 (可选)
+          if-no-files-found: error
+          # 或者，如果你在 build.sh 中设置了 -SKIP_BUNDLE=NO，可以上传 zip 包：
+          # path: ffmpeg-success.zip
