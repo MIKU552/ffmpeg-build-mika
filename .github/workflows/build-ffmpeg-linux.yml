@@ -10,8 +10,8 @@ jobs:
       # 1. Checkout the repository including LFS files
       - name: Checkout repository
         uses: actions/checkout@v4 # Use a current version like v4
-        with:
-          lfs: true # <-- This line enables Git LFS download
+        # with:
+          # lfs: true # <-- This line enables Git LFS download
 
       # 2. Install system dependencies (Make sure git-lfs is included or pre-installed)
       #    GitHub hosted runners usually have git-lfs pre-installed.
