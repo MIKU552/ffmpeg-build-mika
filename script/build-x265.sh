@@ -57,6 +57,16 @@ sed -i '' '20s/.*/project (x265)/' source/CMakeLists.txt
 sed -i '' '1a\
 cmake_minimum_required(VERSION 2.8.8)
 ' source/CMakeLists.txt
+
+# --- 新增 sed 命令 ---
+echo "Adding include(CheckCXXCompilerFlag) to CMakeLists.txt"
+sed -i '' '20a\
+include(CheckCXXCompilerFlag)\
+include(CheckSymbolExists)
+' source/CMakeLists.txt
+checkStatus $? "Failed to add include to CMakeLists.txt"
+# --- 结束新增 ---
+
 mkdir 8bitgen
 checkStatus $? "create directory failed"
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then
@@ -99,12 +109,12 @@ checkStatus $? "change directory failed"
 fi
 
 echo generating profiles simutaneously
-$(cd 8bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26) && echo 8bit &
+$(cd 8bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26) && echo 8bit &
 
 if [ $SKIP_X265_MULTIBIT = "NO" ]; then
-$(cd 10bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26) && echo 10bit &
+$(cd 10bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26) && echo 10bit &
 
-$(cd 12bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --pmode --no-info --crf 26) && echo 12bit &
+$(cd 12bitgen && xz -dc $SCRIPT_DIR/../sample/stefan_sif.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/taikotemoto.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/720p_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc $SCRIPT_DIR/../sample/4k_bbb.y4m.xz | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26) && echo 12bit &
 fi
 
 wait

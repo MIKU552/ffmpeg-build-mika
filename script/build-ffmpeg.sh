@@ -68,7 +68,13 @@ export CFLAGS="$FF_FLAGS"
 if [ $SKIP_VVDEC_PATCH = "NO" ]; then
     wget -O libvvdec.patch https://raw.githubusercontent.com/wiki/fraunhoferhhi/vvdec/data/patch/v6-0001-avcodec-add-external-dec-libvvdec-for-H266-VVC.patch
     patch -p 1 < libvvdec.patch
+    echo "Applying AV_PROFILE fix to libavcodec/libvvdec.c..."
+    sed -i '' 's/FF_PROFILE_VVC_MAIN_10/AV_PROFILE_VVC_MAIN_10/g' libavcodec/libvvdec.c
+    checkStatus $? "sed replace FF_PROFILE_VVC_MAIN_10 failed"
+    sed -i '' 's/FF_PROFILE_VVC_MAIN_10_444/AV_PROFILE_VVC_MAIN_10_444/g' libavcodec/libvvdec.c
+    checkStatus $? "sed replace FF_PROFILE_VVC_MAIN_10_444 failed"
 fi
+
 # --pkg-config-flags="--static" is required to respect the Libs.private flags of the *.pc files
 ./configure --prefix="$OUT_DIR" --pkg-config-flags="--static" --disable-static --enable-shared --enable-lto --extra-version="$EXTRA_VERSION" --enable-gray --enable-libxml2 --enable-videotoolbox --enable-audiotoolbox $FFMPEG_LIB_FLAGS
 checkStatus $? "configuration failed"

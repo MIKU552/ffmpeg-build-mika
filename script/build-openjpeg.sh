@@ -50,7 +50,7 @@ mkdir openjpeg_build
 checkStatus $? "create build directory failed"
 cd openjpeg_build
 checkStatus $? "change build directory failed"
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DBUILD_SHARED_LIBS=OFF ../openjpeg-$VERSION/
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$TOOL_DIR -DBUILD_SHARED_LIBS=OFF -DBUILD_CODEC=OFF ../openjpeg-$VERSION/
 checkStatus $? "configuration failed"
 
 # build

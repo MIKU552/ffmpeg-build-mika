@@ -69,5 +69,11 @@ make -j $CPUS
 checkStatus $? "build failed"
 
 # install
+echo "Creating dummy nasm.1 to avoid installation error..." # 添加说明信息
+touch ./nasm.1 # <--- 新增行：创建空的 nasm.1 文件
+touch ./ndisasm.1 # <--- 新增行：创建空的 ndisasm.1 文件
+
+
+# install
 make install
 checkStatus $? "installation failed"
