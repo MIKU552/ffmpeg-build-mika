@@ -9,7 +9,7 @@ This script is currently not compatible with Linux, because of the difference in
 ### 依赖安装： 
 Debian/Ubuntu:  
 ```
-apt install -y --no-install-recommends git git-lfs build-essential cmake nasm ninja-build pkg-config python3 python3-pip python3-venv python3-virtualenv curl wget patch tar gzip bzip2 xz-utils zip autoconf automake libtool gperf gettext autopoint rustc cargo liblzma-dev libnuma-dev libssl-dev
+apt install -y --no-install-recommends git git-lfs build-essential cmake nasm ninja-build pkg-config python3 python3-pip python3-venv python3-virtualenv curl wget patch tar gzip bzip2 xz-utils zip autoconf automake libtool gperf gettext gettext-devel autopoint rustc cargo liblzma-dev libnuma-dev libssl-dev perl-core perl-FindBin
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 . "$HOME/.cargo/env"
 cargo install cargo-c --locked
