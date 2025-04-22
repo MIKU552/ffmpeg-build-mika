@@ -76,13 +76,8 @@ checkStatus $? "configuration failed"
 make -j $CPUS
 checkStatus $? "build failed"
 
-# --- FIX: Create dummy man page to prevent install error on macOS ---
-if [ "$OS_NAME" = "Darwin" ]; then
-    echo "Creating dummy man pages for macOS install..."
-    touch ./nasm.1
-    touch ./ndisasm.1
-fi
-# --- End FIX ---
+touch ./nasm.1
+touch ./ndisasm.1
 
 # install
 make install
