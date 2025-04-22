@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Copyright 2023 Martin Riedl
-#
+# Merged for Linux & macOS compatibility
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,8 +22,12 @@ SOURCE_DIR=$2
 TOOL_DIR=$3
 CPUS=$4
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# load functions (including run_sed)
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/functions.sh"
+
+# --- OS Detection ---
+OS_NAME=$(uname)
 
 # load version
 VERSION=$(cat "$SCRIPT_DIR/../version/zimg")
@@ -32,19 +37,23 @@ echo "version: $VERSION"
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
-mkdir "zimg"
-checkStatus $? "create directory failed"
+mkdir -p "zimg" # Use -p
 cd "zimg/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://gh-proxy.com/https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz "zimg.tar.gz"
+ZIMG_TARBALL="zimg-$VERSION.tar.gz" # Consistent name
+ZIMG_UNPACK_DIR="zimg-release-$VERSION" # Match unpack dir name
+# Use gh-proxy if needed
+# download https://gh-proxy.com/https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz "$ZIMG_TARBALL"
+download https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz "$ZIMG_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -zxf "zimg.tar.gz"
+tar -zxf "$ZIMG_TARBALL"
 checkStatus $? "unpack failed"
-cd "zimg-release-$VERSION/"
+rm "$ZIMG_TARBALL" # Clean up
+cd "$ZIMG_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build
@@ -61,6 +70,37 @@ checkStatus $? "build failed"
 make install
 checkStatus $? "installation failed"
 
-# post-installation
+# --- Post-installation pkg-config fix ---
 # build fails on some OS, because of missing linking to libm
-sed -i.original -e 's/lzimg/lzimg -lm/g' $TOOL_DIR/lib/pkgconfig/zimg.pc
+echo "Applying post-installation fix to zimg.pc..."
+# Determine where the .pc file was installed
+PKGCONFIG_PATH_LIB="$TOOL_DIR/lib/pkgconfig/zimg.pc"
+PKGCONFIG_PATH_LIB64="$TOOL_DIR/lib64/pkgconfig/zimg.pc"
+ACTUAL_PC_FILE=""
+
+if [ -f "$PKGCONFIG_PATH_LIB" ]; then
+    ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB"
+elif [ "$OS_NAME" = "Linux" ] && [ -f "$PKGCONFIG_PATH_LIB64" ]; then
+    ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB64"
+fi
+
+if [ -z "$ACTUAL_PC_FILE" ]; then
+    echo "Warning: zimg.pc not found in expected pkgconfig directories after install!"
+else
+     echo "Found pkgconfig file at: $ACTUAL_PC_FILE"
+     # Add -lm if missing
+     if ! grep -q -- "-lm" "$ACTUAL_PC_FILE"; then
+         echo "Adding -lm to $ACTUAL_PC_FILE"
+         # Append to Libs.private if it exists, otherwise append to Libs
+         if grep -q "^Libs.private:" "$ACTUAL_PC_FILE"; then
+             run_sed "s|^Libs.private:.*|& -lm|" "$ACTUAL_PC_FILE"
+         else
+             run_sed "s|^Libs:.*|& -lm|" "$ACTUAL_PC_FILE"
+         fi
+          checkStatus $? "modify pkgconfig file failed"
+     else
+          echo "-lm already seems present in $ACTUAL_PC_FILE."
+     fi
+fi
+
+cd .. # Back to SOURCE_DIR/zimg

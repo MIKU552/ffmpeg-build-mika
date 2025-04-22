@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Copyright 2021 Martin Riedl
-#
+# Merged for Linux & macOS compatibility
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,9 +20,14 @@ echo "arguments: $@"
 SCRIPT_DIR=$1
 SOURCE_DIR=$2
 TOOL_DIR=$3
+# Note: CPUS not used by original script
 
 # load functions
-. $SCRIPT_DIR/functions.sh
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/functions.sh"
+
+# --- OS Detection ---
+OS_NAME=$(uname)
 
 # load version
 VERSION=$(cat "$SCRIPT_DIR/../version/pkg-config")
@@ -31,65 +37,51 @@ echo "version: $VERSION"
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
-mkdir "pkg-config"
-checkStatus $? "create directory failed"
+mkdir -p "pkg-config" # Use -p
 cd "pkg-config/"
 checkStatus $? "change directory failed"
 
 # download source
+PKG_SUBDIR="pkg-config-src" # Use subdirectory
+mkdir -p "$PKG_SUBDIR"
 download https://pkg-config.freedesktop.org/releases/pkg-config-$VERSION.tar.gz "pkg-config.tar.gz"
 checkStatus $? "download of pkg-config failed"
 
 # unpack
-tar -zxf "pkg-config.tar.gz"
+tar -zxf "pkg-config.tar.gz" -C "$PKG_SUBDIR" --strip-components=1
 checkStatus $? "unpack pkg-config failed"
-cd "pkg-config-$VERSION/"
+rm pkg-config.tar.gz # Clean up tarball
+cd "$PKG_SUBDIR/"
 checkStatus $? "change directory failed"
 
-# windows specific stuff
-DETECTED_OS="$(uname -o 2> /dev/null)"
-echo "detected OS: $DETECTED_OS"
-if [ $DETECTED_OS = "Msys" ]; then
-    # download patches
-    # https://github.com/msys2/MINGW-packages/tree/master/mingw-w64-pkg-config
-    echo "download patches for windows"
-    download https://raw.githubusercontent.com/msys2/MINGW-packages/5e72f0204a19fd0a45d50d8e08bf9bed6455b32b/mingw-w64-pkg-config/1001-Use-CreateFile-on-Win32-to-make-sure-g_unlink-always.patch "1001-Use-CreateFile-on-Win32-to-make-sure-g_unlink-always.patch"
-    checkStatus "download of patch 1001 failed"
-    download https://raw.githubusercontent.com/msys2/MINGW-packages/5e72f0204a19fd0a45d50d8e08bf9bed6455b32b/mingw-w64-pkg-config/1003-g_abort.all.patch "1003-g_abort.all.patch"
-    checkStatus "download of patch 1003 failed"
-    download https://raw.githubusercontent.com/msys2/MINGW-packages/5e72f0204a19fd0a45d50d8e08bf9bed6455b32b/mingw-w64-pkg-config/1005-glib-send-log-messages-to-correct-stdout-and-stderr.patch "1005-glib-send-log-messages-to-correct-stdout-and-stderr.patch"
-    checkStatus "download of patch 1005 failed"
-    download https://raw.githubusercontent.com/msys2/MINGW-packages/5e72f0204a19fd0a45d50d8e08bf9bed6455b32b/mingw-w64-pkg-config/1017-glib-use-gnu-print-scanf.patch "1017-glib-use-gnu-print-scanf.patch"
-    checkStatus "download of patch 1017 failed"
-    download https://raw.githubusercontent.com/msys2/MINGW-packages/5e72f0204a19fd0a45d50d8e08bf9bed6455b32b/mingw-w64-pkg-config/1024-return-actually-written-data-in-printf.all.patch "1024-return-actually-written-data-in-printf.all.patch"
-    checkStatus "download of patch 1024 failed"
-    download https://raw.githubusercontent.com/msys2/MINGW-packages/5e72f0204a19fd0a45d50d8e08bf9bed6455b32b/mingw-w64-pkg-config/1030-fix-stat.all.patch "1030-fix-stat.all.patch"
-    checkStatus "download of patch 1030 failed"
-    download https://raw.githubusercontent.com/msys2/MINGW-packages/5e72f0204a19fd0a45d50d8e08bf9bed6455b32b/mingw-w64-pkg-config/1031-fix-glib-gettext-m4-error.patch "1031-fix-glib-gettext-m4-error.patch"
-    checkStatus "download of patch 1031 failed"
+# --- Windows specific stuff (Keep for reference, though not target platforms) ---
+DETECTED_OS_INTERNAL="$(uname -o 2> /dev/null)" # Use different var name
+echo "detected internal OS type: $DETECTED_OS_INTERNAL"
+if [ "$DETECTED_OS_INTERNAL" = "Msys" ]; then
+    echo "Windows (MSYS) specific patches would be applied here if needed."
+    # (Patch code omitted as Windows is not a target)
+fi
+# --- End Windows specific ---
 
-    # patch fixes for windows build
-    cd glib
-    echo "apply patches for windows"
-    patch -Np1 -i "../1001-Use-CreateFile-on-Win32-to-make-sure-g_unlink-always.patch"
-    checkStatus "apply patch 1001 failed"
-    patch -Np1 -i "../1003-g_abort.all.patch"
-    checkStatus "apply patch 1003 failed"
-    patch -Np1 -i "../1005-glib-send-log-messages-to-correct-stdout-and-stderr.patch"
-    checkStatus "apply patch 1005 failed"
-    patch -Np1 -i "../1017-glib-use-gnu-print-scanf.patch"
-    checkStatus "apply patch 1017 failed"
-    patch -Np1 -i "../1024-return-actually-written-data-in-printf.all.patch"
-    checkStatus "apply patch 1024 failed"
-    patch -Np1 -i "../1030-fix-stat.all.patch"
-    checkStatus "apply patch 1030 failed"
-    patch -Np1 -i "../1031-fix-glib-gettext-m4-error.patch"
-    checkStatus "apply patch 1031 failed"
-    cd ..
+
+# --- Add macOS specific CFLAGS ---
+CONFIGURE_CFLAGS=""
+if [ "$OS_NAME" = "Darwin" ]; then
+    echo "Adding -Wno-int-conversion CFLAG for macOS glib build"
+    CONFIGURE_CFLAGS="CFLAGS=-Wno-int-conversion"
 fi
 
 # prepare build
-./configure --prefix="$TOOL_DIR" --with-pc-path="$TOOL_DIR/lib/pkgconfig" --with-internal-glib CFLAGS="-Wno-int-conversion"
+# Construct pkg-config search path carefully, including potential lib64
+PKG_CONFIG_SEARCH_PATH="$TOOL_DIR/lib/pkgconfig"
+if [ "$OS_NAME" = "Linux" ]; then
+    PKG_CONFIG_SEARCH_PATH="$PKG_CONFIG_SEARCH_PATH:$TOOL_DIR/lib64/pkgconfig"
+fi
+
+./configure --prefix="$TOOL_DIR" \
+            --with-pc-path="$PKG_CONFIG_SEARCH_PATH" \
+            --with-internal-glib \
+            "$CONFIGURE_CFLAGS" # Add CFLAGS here
 checkStatus $? "configuration of pkg-config failed"
 
 # build

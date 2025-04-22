@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Copyright 2022 Martin Riedl
-#
+# Merged for Linux & macOS compatibility
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -21,8 +22,12 @@ SOURCE_DIR=$2
 TOOL_DIR=$3
 CPUS=$4
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# load functions (including run_sed)
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/functions.sh"
+
+# --- OS Detection ---
+OS_NAME=$(uname)
 
 # load version
 VERSION=$(cat "$SCRIPT_DIR/../version/libvorbis")
@@ -32,8 +37,7 @@ echo "version: $VERSION"
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
-mkdir "libvorbis"
-checkStatus $? "create directory failed"
+mkdir -p "libvorbis" # Use -p
 cd "libvorbis/"
 checkStatus $? "change directory failed"
 
@@ -48,9 +52,14 @@ cd "libvorbis-$VERSION/"
 checkStatus $? "change directory failed"
 
 # prepare build
-sed -i '205,207s/-force_cpusubtype_ALL //g' configure.ac
-sed -i '12843,12845s/-force_cpusubtype_ALL //g' configure
-./configure --prefix="$TOOL_DIR" --enable-shared=no
+# Apply macOS specific sed changes only on Darwin
+if [ "$OS_NAME" = "Darwin" ]; then
+    echo "Applying macOS specific configure patches..."
+    run_sed '205,207s/-force_cpusubtype_ALL //g' configure.ac
+    run_sed '12843,12845s/-force_cpusubtype_ALL //g' configure
+fi
+
+./configure --prefix="$TOOL_DIR" --enable-shared=no --disable-examples --disable-docs
 checkStatus $? "configuration failed"
 
 # build

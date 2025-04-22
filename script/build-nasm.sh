@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Copyright 2021 Martin Riedl
-#
+# Merged for Linux & macOS compatibility
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,11 +21,13 @@ SCRIPT_DIR=$1
 SOURCE_DIR=$2
 TOOL_DIR=$3
 CPUS=$4
-# Get LOG_DIR passed from build.sh if needed, or reconstruct path
-LOG_DIR="$WORKING_DIR/log" # Assuming WORKING_DIR is set or use absolute path logic from build.sh
 
 # load functions
-. $SCRIPT_DIR/functions.sh
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/functions.sh"
+
+# --- OS Detection ---
+OS_NAME=$(uname)
 
 # load version
 VERSION=$(cat "$SCRIPT_DIR/../version/nasm")
@@ -34,24 +37,28 @@ echo "version: $VERSION"
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
-mkdir "nasm" # This might fail harmlessly if cleaned source dir doesn't exist yet
+mkdir -p "nasm" # Use -p
 cd "nasm/"
 checkStatus $? "change directory failed"
 
 # download source
-mkdir "nasm" # Script creates source/nasm/nasm
+NASM_SUBDIR="nasm-src" # Use a subdirectory
+mkdir -p "$NASM_SUBDIR"
 checkStatus $? "create directory failed"
 download http://www.nasm.us/pub/nasm/releasebuilds/$VERSION/nasm-$VERSION.tar.gz nasm.tar.gz
 if [ $? -ne 0 ]; then
     echo "download failed; start download from github server"
-    download https://gh-proxy.com/https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-$VERSION.tar.gz nasm.tar.gz
+    # Use gh-proxy if needed
+    # download https://gh-proxy.com/https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-$VERSION.tar.gz nasm.tar.gz
+    download https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-$VERSION.tar.gz nasm.tar.gz
     checkStatus $? "download failed"
 fi
 
 # unpack
-tar -zxf "nasm.tar.gz" -C nasm --strip-components=1
+tar -zxf "nasm.tar.gz" -C "$NASM_SUBDIR" --strip-components=1
 checkStatus $? "unpack failed"
-cd "nasm/"
+rm nasm.tar.gz # Clean up tarball
+cd "$NASM_SUBDIR/"
 checkStatus $? "change directory failed"
 
 # prepare build
@@ -60,7 +67,7 @@ if [ -f "configure" ]; then
 else
     echo "run autogen first"
     ./autogen.sh
-    checkStatus $? "autogen failed" # Added exit check for autogen
+    checkStatus $? "autogen failed" # Check status
 fi
 ./configure --prefix="$TOOL_DIR"
 checkStatus $? "configuration failed"
@@ -69,16 +76,14 @@ checkStatus $? "configuration failed"
 make -j $CPUS
 checkStatus $? "build failed"
 
-# --- FIX: Create dummy man page to prevent install error ---
-echo "Creating dummy nasm.1 to prevent install error"
-touch nasm.1
-touch ndisasm.1
+# --- FIX: Create dummy man page to prevent install error on macOS ---
+if [ "$OS_NAME" = "Darwin" ]; then
+    echo "Creating dummy man pages for macOS install..."
+    touch ./nasm.1
+    touch ./ndisasm.1
+fi
 # --- End FIX ---
 
 # install
 make install
 checkStatus $? "installation failed"
-
-# Note: Success marker logic was removed from individual scripts
-# If you revert to that logic, add touch command here:
-# touch "$LOG_DIR/build-nasm.success"

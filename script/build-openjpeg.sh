@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Copyright 2021 Martin Riedl
-#
+# Merged for Linux & macOS compatibility
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,11 +21,13 @@ SCRIPT_DIR=$1
 SOURCE_DIR=$2
 TOOL_DIR=$3
 CPUS=$4
-# Reconstruct LOG_DIR path
-LOG_DIR="$(pwd)/log"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# load functions (including run_sed)
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/functions.sh"
+
+# --- OS Detection ---
+OS_NAME=$(uname)
 
 # load version
 VERSION=$(cat "$SCRIPT_DIR/../version/openjpeg")
@@ -41,6 +44,8 @@ checkStatus $? "change directory failed"
 # download source
 OPENJPEG_TARBALL="openjpeg-$VERSION.tar.gz"
 OPENJPEG_UNPACK_DIR="openjpeg-$VERSION"
+# Use gh-proxy if needed
+# download https://gh-proxy.com/https://github.com/uclouvain/openjpeg/archive/refs/tags/v$VERSION.tar.gz "$OPENJPEG_TARBALL"
 download https://github.com/uclouvain/openjpeg/archive/refs/tags/v$VERSION.tar.gz "$OPENJPEG_TARBALL"
 checkStatus $? "download failed"
 
@@ -50,6 +55,7 @@ if [ -d "$OPENJPEG_UNPACK_DIR" ]; then
 fi
 tar -zxf "$OPENJPEG_TARBALL"
 checkStatus $? "unpack failed"
+rm "$OPENJPEG_TARBALL" # Clean up tarball
 
 # prepare build
 BUILD_DIR="openjpeg_build"
@@ -62,11 +68,12 @@ checkStatus $? "change build directory failed"
 SOURCE_REL_PATH="../$OPENJPEG_UNPACK_DIR"
 # Configure using CMake
 cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
+      -DCMAKE_BUILD_TYPE=Release \
       -DBUILD_SHARED_LIBS=OFF \
       -DBUILD_STATIC_LIBS=ON \
       -DBUILD_TESTING=OFF \
+      -DBUILD_CODEC=OFF \
       "$SOURCE_REL_PATH"
-      # NOTE: Removed -DCMAKE_INSTALL_LIBDIR=lib to allow default behavior
 checkStatus $? "configuration failed"
 
 # build
@@ -79,65 +86,57 @@ checkStatus $? "installation failed"
 
 # --- Fix pkgconfig file for static linking (handle lib vs lib64) ---
 echo "Applying post-installation fix to libopenjp2.pc..."
+# Determine where the .pc file was installed
 PKGCONFIG_PATH_LIB="$TOOL_DIR/lib/pkgconfig/libopenjp2.pc"
 PKGCONFIG_PATH_LIB64="$TOOL_DIR/lib64/pkgconfig/libopenjp2.pc"
 ACTUAL_PC_FILE=""
 
 if [ -f "$PKGCONFIG_PATH_LIB" ]; then
     ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB"
-    echo "Found pkgconfig file at: $ACTUAL_PC_FILE"
-elif [ -f "$PKGCONFIG_PATH_LIB64" ]; then
+elif [ "$OS_NAME" = "Linux" ] && [ -f "$PKGCONFIG_PATH_LIB64" ]; then
     ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB64"
-    echo "Found pkgconfig file at: $ACTUAL_PC_FILE"
-else
-    echo "ERROR: libopenjp2.pc not found in $TOOL_DIR/lib/pkgconfig or $TOOL_DIR/lib64/pkgconfig after install!"
-    # Optionally list contents for debugging:
-    # echo "Contents of $TOOL_DIR/lib:" && ls -lR "$TOOL_DIR/lib/"
-    # echo "Contents of $TOOL_DIR/lib64:" && ls -lR "$TOOL_DIR/lib64/"
-    exit 1 # Fail the build
 fi
 
-# Add -lm -lpthread if they are not already present in Libs.private
-# Use grep -q to check if pattern exists; only run sed if pattern is found and needs modification
-if grep -q "Libs.private:" "$ACTUAL_PC_FILE"; then
-    # Check if flags are already there to avoid adding duplicates
-    if ! grep "Libs.private:.*-lm" "$ACTUAL_PC_FILE" || ! grep "Libs.private:.*-lpthread" "$ACTUAL_PC_FILE"; then
-        echo "Adding -lm -lpthread to Libs.private in $ACTUAL_PC_FILE"
-        # Use a temporary variable for the replacement string to handle potential special characters
-        # Read existing flags, append new ones if missing (more robust)
-        EXISTING_LIBS=$(grep "^Libs.private:" "$ACTUAL_PC_FILE" | sed 's/^Libs.private://')
-        NEW_LIBS="$EXISTING_LIBS"
-        # Add -lm if missing
-        if ! echo "$EXISTING_LIBS" | grep -q -- "-lm"; then
-            NEW_LIBS="$NEW_LIBS -lm"
-        fi
-        # Add -lpthread if missing
-        if ! echo "$EXISTING_LIBS" | grep -q -- "-lpthread"; then
-            NEW_LIBS="$NEW_LIBS -lpthread"
-        fi
-        # Remove leading/trailing whitespace (optional)
-        NEW_LIBS=$(echo "$NEW_LIBS" | awk '{$1=$1};1')
-
-        # Replace the whole line starting with Libs.private:
-        sed -i.original -e "s|^Libs.private:.*|Libs.private: $NEW_LIBS|g" "$ACTUAL_PC_FILE"
-        checkStatus $? "modify pkgconfig file failed"
-    else
-        echo "-lm and -lpthread already seem present in Libs.private."
-    fi
+if [ -z "$ACTUAL_PC_FILE" ]; then
+    echo "ERROR: libopenjp2.pc not found in expected pkgconfig directories after install!"
+    exit 1
 else
-    # If Libs.private doesn't exist, add it with the flags
-    echo "Adding 'Libs.private: -lm -lpthread' to $ACTUAL_PC_FILE"
-    echo "Libs.private: -lm -lpthread" >> "$ACTUAL_PC_FILE"
-    checkStatus $? "add Libs.private line failed"
-    # echo "Warning: 'Libs.private:' line not found in $ACTUAL_PC_FILE. Cannot add flags automatically."
-    # Depending on needs, might need to add the line or ignore. Let's add it.
+    echo "Found pkgconfig file at: $ACTUAL_PC_FILE"
+    # Add -lm -lpthread if they are not already present in Libs.private or Libs
+    LIBS_LINE=$(grep "^Libs:" "$ACTUAL_PC_FILE")
+    LIBS_PRIVATE_LINE=$(grep "^Libs.private:" "$ACTUAL_PC_FILE")
+
+    NEEDS_PTHREAD="YES"
+    NEEDS_M="YES"
+
+    # Check if flags exist in either Libs or Libs.private
+    if echo "$LIBS_LINE $LIBS_PRIVATE_LINE" | grep -q -- "-lpthread"; then
+        NEEDS_PTHREAD="NO"
+    fi
+    if echo "$LIBS_LINE $LIBS_PRIVATE_LINE" | grep -q -- "-lm"; then
+        NEEDS_M="NO"
+    fi
+
+    FLAGS_TO_ADD=""
+    if [ "$NEEDS_PTHREAD" = "YES" ]; then FLAGS_TO_ADD="$FLAGS_TO_ADD -lpthread"; fi
+    if [ "$NEEDS_M" = "YES" ]; then FLAGS_TO_ADD="$FLAGS_TO_ADD -lm"; fi
+
+    if [ -n "$FLAGS_TO_ADD" ]; then
+        echo "Adding flags '$FLAGS_TO_ADD' to $ACTUAL_PC_FILE"
+        # Append to Libs.private if it exists, otherwise append to Libs
+        if grep -q "^Libs.private:" "$ACTUAL_PC_FILE"; then
+            run_sed "s|^Libs.private:.*|&${FLAGS_TO_ADD}|" "$ACTUAL_PC_FILE"
+        else
+            # Append to Libs line
+             run_sed "s|^Libs:.*|&${FLAGS_TO_ADD}|" "$ACTUAL_PC_FILE"
+             # OR add Libs.private line if Libs is complex
+             # echo "Libs.private:$FLAGS_TO_ADD" >> "$ACTUAL_PC_FILE"
+        fi
+         checkStatus $? "modify pkgconfig file failed"
+    else
+        echo "Required flags (-lm, -lpthread) already seem present in $ACTUAL_PC_FILE."
+    fi
 fi
 # --- End pkgconfig fix ---
 
-
-# cd back to base dir (source/openjpeg)
-cd ..
-checkStatus $? "cd back failed"
-
-# Add success marker logic if you are using it
-# touch "$LOG_DIR/build-openjpeg.success"
+cd .. # Back to parent dir (source/openjpeg)
