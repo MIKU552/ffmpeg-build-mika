@@ -50,7 +50,7 @@ SKIP_VVDEC="NO"
 SKIP_VVENC="NO"
 # Tool skips
 SKIP_NASM="NO"
-SKIP_PKG_CONFIG="NO"
+SKIP_PKG_CONFIG="YES"
 SKIP_ZLIB="NO"
 SKIP_OPENSSL="NO"
 SKIP_CMAKE="NO"
@@ -443,7 +443,7 @@ run_build() {
 
 # Usage: run_build <libname> <script_name> <target_check_filename> <source_subdir> <ffmpeg_flag> <is_gpl> <is_nonfree> [extra_args...]
 run_build "nasm" "build-nasm" "nasm" "nasm" "" "NO" "NO"
-# run_build "pkg-config" "build-pkg-config" "pkg-config" "pkg-config" "" "NO" "NO" "$TOOL_DIR"
+run_build "pkg-config" "build-pkg-config" "pkg-config" "pkg-config" "" "NO" "NO" "$TOOL_DIR"
 run_build "zlib" "build-zlib" "libz.a" "zlib" "" "NO" "NO"
 run_build "openssl" "build-openssl" "libssl.a" "openssl" "" "NO" "NO" # FFmpeg links ssl & crypto
 run_build "cmake" "build-cmake" "cmake" "cmake" "" "NO" "NO"
