@@ -68,20 +68,18 @@ prepareMeson(){
 
 relocateDylib(){
     local EXES=("ffmpeg" "ffplay" "ffprobe")
-    local DYLIBS=()
-
-    cd $OUT_DIR/lib
-    for file in lib*.*.dylib; do
-        if [[ -L "$file" ]]; then
-            DYLIBS+=("$file")
-        fi
-    done
-    cd $WORKING_DIR
-
-    for exe in $EXES; do
-        for dylib in $DYLIBS; do
-            install_name_tool -change $OUT_DIR/lib/$dylib @executable_path/../lib/$dylib $OUT_DIR/bin/$exe
-            checkStatus $? "dylib relocating failed"
+    for exe in "${EXES[@]}"; do
+        local BIN="$OUT_DIR/bin/$exe"
+        # find out those dylibs that exist in OUT_DIR/lib
+        otool -L "$BIN" \
+        | awk -v libdir="$OUT_DIR/lib/" '$1 ~ libdir {print $1}' \
+        | while read -r dep; do
+            local libname=$(basename "$dep")
+            install_name_tool -change \
+                "$dep" \
+                "@executable_path/../lib/$libname" \
+                "$BIN"
+            checkStatus $? "relocating $libname in $exe failed"
         done
     done
 }
