@@ -2,7 +2,7 @@
 
 # Copyright 2021 Martin Riedl
 # Copyright 2024 Hayden Zheng
-# Merged for Linux & macOS compatibility
+# Merged for Linux & macOS compatibility - Reverted Linux lib merging to original 'ar -M'
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,8 +44,8 @@ cd "x265/"
 checkStatus $? "change directory failed"
 
 # download source
-X265_TARBALL="x265-$VERSION.tar.gz" # Consistent name
-X265_UNPACK_DIR="x265-src" # Consistent name
+X265_TARBALL="x265-$VERSION.tar.gz"
+X265_UNPACK_DIR="x265-src"
 download https://bitbucket.org/multicoreware/x265_git/get/$VERSION.tar.gz "$X265_TARBALL"
 checkStatus $? "download of x265 failed"
 
@@ -63,16 +63,12 @@ checkStatus $? "change directory failed"
 X265_MAIN_CMAKE_PATH="source/CMakeLists.txt"
 echo "Patching $X265_MAIN_CMAKE_PATH..."
 if [ -f "$X265_MAIN_CMAKE_PATH" ]; then
-    # Set minimum version and project name (common to both)
     run_sed '1a\
 cmake_minimum_required(VERSION 3.10)
-' "$X265_MAIN_CMAKE_PATH" # Increased min version slightly
+' "$X265_MAIN_CMAKE_PATH"
 
-    # Correct project line if needed (ensure only one project line exists)
     run_sed 's/project *\(.*\)/project(x265 CXX C ASM)/' "$X265_MAIN_CMAKE_PATH"
 
-    # Add includes (common to both, adapted from linux version)
-    # Use awk to insert after the project line to be robust
     awk '
     /project *\(.*\)/ {
         print;
@@ -86,11 +82,10 @@ cmake_minimum_required(VERSION 3.10)
     ' "$X265_MAIN_CMAKE_PATH" > "$X265_MAIN_CMAKE_PATH.tmp" && mv "$X265_MAIN_CMAKE_PATH.tmp" "$X265_MAIN_CMAKE_PATH"
     checkStatus $? "Adding includes to CMakeLists.txt failed"
 
-    # macOS specific policy change
     if [ "$OS_NAME" = "Darwin" ]; then
-        run_sed 's/cmake_minimum_required(VERSION 3.10)/cmake_minimum_required(VERSION 3.10)\
-cmake_policy(SET CMP0069 NEW)/' "$X265_MAIN_CMAKE_PATH"
-        # Original macOS script had '19s/.*/...' - this is less robust. The line above inserts after min_required.
+         run_sed '/cmake_minimum_required(VERSION 3.10)/a \
+cmake_policy(SET CMP0069 NEW)
+' "$X265_MAIN_CMAKE_PATH"
     fi
     echo "CMakeLists.txt patched."
 else
@@ -105,15 +100,13 @@ PGO_GEN_CXXFLAGS=""
 PGO_USE_CFLAGS=""
 PGO_USE_CXXFLAGS=""
 LLVM_PROFDATA_CMD=""
-NASM_FLAGS="-DENABLE_CET=0" # Disable CET for NASM on Linux, might be needed on macOS too?
+NASM_FLAGS="" # Default empty
 
 if [ "$OS_NAME" = "Darwin" ]; then
     PGO_GEN_CFLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048"
     PGO_GEN_CXXFLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048"
     PROFDATA_FILE="default.profdata" # Relative to build dir
-    PGO_USE_CFLAGS="-fprofile-use=${PROFDATA_FILE}"
-    PGO_USE_CXXFLAGS="-fprofile-use=${PROFDATA_FILE}"
-    # Find llvm-profdata
+    # PROFDATA_FILE_ABS will be set after merge
     if command -v llvm-profdata >/dev/null 2>&1; then
         LLVM_PROFDATA_CMD=$(command -v llvm-profdata)
     else
@@ -121,15 +114,16 @@ if [ "$OS_NAME" = "Darwin" ]; then
         if [ -x "$XCODE_TOOLCHAIN_PATH/llvm-profdata" ]; then
              LLVM_PROFDATA_CMD="$XCODE_TOOLCHAIN_PATH/llvm-profdata"
         else
-             echo "Warning: llvm-profdata not found for x265 PGO on macOS. PGO will likely fail."
-             # Allow to continue but PGO use step will fail later
+             echo "Warning: llvm-profdata not found for x265 PGO on macOS."
         fi
     fi
+    # NASM_FLAGS likely not needed for macOS/clang
 else # Linux (GCC)
     PGO_GEN_CFLAGS="-fprofile-generate"
     PGO_GEN_CXXFLAGS="-fprofile-generate"
     PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile"
     PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile"
+    NASM_FLAGS="-DENABLE_CET=0" # Keep CET disable for Linux/GCC NASM
 fi
 # --- End PGO Flag Definitions ---
 
@@ -145,14 +139,15 @@ fi
 echo "Compiling 8bit profile generator..."
 cd 8bitgen
 checkStatus $? "cd 8bitgen failed"
-cmake -DCMAKE_C_FLAGS="$PGO_GEN_CFLAGS" \
-      -DCMAKE_CXX_FLAGS="$PGO_GEN_CXXFLAGS" \
-      -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+# shellcheck disable=SC2086 # Allow splitting NASM_FLAGS if it's empty
+cmake -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
       -DENABLE_SHARED=NO \
-      -DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS" \
+      -DCMAKE_C_FLAGS="$PGO_GEN_CFLAGS" \
+      -DCMAKE_CXX_FLAGS="$PGO_GEN_CXXFLAGS" \
+      ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
       ../source
 checkStatus $? "8bitgen configuration failed"
-make -j $CPUS # Use CPUS variable
+make -j $CPUS
 checkStatus $? "build 8bitgen failed"
 cd ..
 checkStatus $? "cd .. from 8bitgen failed"
@@ -161,12 +156,13 @@ if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
     echo "Compiling 10bit profile generator..."
     cd 10bitgen
     checkStatus $? "cd 10bitgen failed"
-    cmake -DCMAKE_C_FLAGS="$PGO_GEN_CFLAGS" \
-          -DCMAKE_CXX_FLAGS="$PGO_GEN_CXXFLAGS" \
-          -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+    # shellcheck disable=SC2086
+    cmake -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
           -DENABLE_SHARED=NO \
           -DHIGH_BIT_DEPTH=ON \
-          -DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS" \
+          -DCMAKE_C_FLAGS="$PGO_GEN_CFLAGS" \
+          -DCMAKE_CXX_FLAGS="$PGO_GEN_CXXFLAGS" \
+          ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
           ../source
     checkStatus $? "10bitgen configuration failed"
     make -j $CPUS
@@ -177,13 +173,14 @@ if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
     echo "Compiling 12bit profile generator..."
     cd 12bitgen
     checkStatus $? "cd 12bitgen failed"
-    cmake -DCMAKE_C_FLAGS="$PGO_GEN_CFLAGS" \
-          -DCMAKE_CXX_FLAGS="$PGO_GEN_CXXFLAGS" \
-          -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+    # shellcheck disable=SC2086
+    cmake -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
           -DENABLE_SHARED=NO \
           -DHIGH_BIT_DEPTH=ON \
           -DMAIN12=ON \
-          -DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS" \
+          -DCMAKE_C_FLAGS="$PGO_GEN_CFLAGS" \
+          -DCMAKE_CXX_FLAGS="$PGO_GEN_CXXFLAGS" \
+          ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
           ../source
     checkStatus $? "12bitgen configuration failed"
     make -j $CPUS
@@ -195,9 +192,8 @@ fi
 
 # --- PGO Step 2: Training Run ---
 echo "Generating profiles simultaneously..."
-# Run training in background
 (cd 8bitgen && xz -dc "$SCRIPT_DIR/../sample/stefan_sif.y4m.xz" | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc "$SCRIPT_DIR/../sample/taikotemoto.y4m.xz" | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc "$SCRIPT_DIR/../sample/720p_bbb.y4m.xz" | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc "$SCRIPT_DIR/../sample/4k_bbb.y4m.xz" | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && echo "8bit training done") &
-PIDS="$!" # Collect background PIDs
+PIDS="$!"
 
 if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
     (cd 10bitgen && xz -dc "$SCRIPT_DIR/../sample/stefan_sif.y4m.xz" | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc "$SCRIPT_DIR/../sample/taikotemoto.y4m.xz" | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc "$SCRIPT_DIR/../sample/720p_bbb.y4m.xz" | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && xz -dc "$SCRIPT_DIR/../sample/4k_bbb.y4m.xz" | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26 && echo "10bit training done") &
@@ -208,62 +204,57 @@ fi
 
 echo "Waiting for training runs to complete..."
 FAIL=0
-for pid in $PIDS; do
-    wait $pid || let "FAIL+=1"
-done
-
-if [ "$FAIL" -ne 0 ]; then
-    echo "ERROR: $FAIL PGO training run(s) failed."
-    exit 1
-fi
+for pid in $PIDS; do wait $pid || let "FAIL+=1"; done
+if [ "$FAIL" -ne 0 ]; then echo "ERROR: $FAIL PGO training run(s) failed."; exit 1; fi
 echo "All training runs completed."
 
 
 # --- PGO Step 3: Process Profile Data ---
 echo "Processing PGO profiles..."
+PROFDATA_FILE_ABS="" # Store absolute path for macOS use phase
 if [ "$OS_NAME" = "Darwin" ]; then
     if [ -n "$LLVM_PROFDATA_CMD" ] && [ -x "$LLVM_PROFDATA_CMD" ]; then
          echo "Merging Clang profiles using $LLVM_PROFDATA_CMD..."
-         # Merge profiles from all *bitgen directories
          $LLVM_PROFDATA_CMD merge -o default.profdata */*.profraw
          checkStatus $? "llvm-profdata merge failed"
-         # Clean up raw profiles
+         PROFDATA_FILE_ABS="$(pwd)/default.profdata"
+         # Update use flags with absolute path
+         PGO_USE_CFLAGS="-fprofile-use=${PROFDATA_FILE_ABS}"
+         PGO_USE_CXXFLAGS="-fprofile-use=${PROFDATA_FILE_ABS}"
          rm -f */*.profraw
-         PROFDATA_FILE_ABS="$(pwd)/default.profdata" # Absolute path for use phase
          echo "PGO profile saved to: $PROFDATA_FILE_ABS"
     else
-         echo "ERROR: Cannot merge PGO profiles on macOS because llvm-profdata was not found."
+         echo "ERROR: Cannot merge PGO profiles on macOS (llvm-profdata not found)."
          exit 1
     fi
 else # Linux (GCC)
     echo "GCC PGO profile data (.gcda) generated in *bitgen directories."
-    # No explicit merge needed for GCC, but ensure final build uses data from all
-    # We will pass the PGO use flags during the final CMake configure step(s).
+    # PGO_USE_CFLAGS/CXXFLAGS already set correctly for GCC
 fi
 echo "Profile processing completed."
 
 
 # --- Final Optimized Build ---
-
-# Clean PGO generator directories (optional but recommended)
+# Clean PGO generator directories
 rm -rf 8bitgen 10bitgen 12bitgen
 
 if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
     # --- Multi-bit Build ---
     echo "Starting multi-bit optimized build..."
-    # Prepare build 10 bit (optimized)
+    mkdir -p 10bit 12bit
+    checkStatus $? "create 10/12bit directories failed"
+
     echo "Configuring/Building 10bit optimized..."
-    mkdir -p 10bit
-    checkStatus $? "create 10bit directory failed"
     cd 10bit/
     checkStatus $? "cd 10bit failed"
+    # shellcheck disable=SC2086
     cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
-          -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
-          -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
           -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
           -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF \
           -DHIGH_BIT_DEPTH=ON \
-          -DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS" \
+          -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
+          -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
+          ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
           ../source
     checkStatus $? "configuration 10 bit optimized failed"
     make -j $CPUS
@@ -271,19 +262,17 @@ if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
     cd ..
     checkStatus $? "cd .. from 10bit failed"
 
-    # Prepare build 12 bit (optimized)
     echo "Configuring/Building 12bit optimized..."
-    mkdir -p 12bit
-    checkStatus $? "create 12bit directory failed"
     cd 12bit/
     checkStatus $? "cd 12bit failed"
+    # shellcheck disable=SC2086
     cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
-          -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
-          -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
           -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
           -DENABLE_SHARED=NO -DENABLE_CLI=OFF -DEXPORT_C_API=OFF \
           -DHIGH_BIT_DEPTH=ON -DMAIN12=ON \
-          -DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS" \
+          -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
+          -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
+          ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
           ../source
     checkStatus $? "configuration 12 bit optimized failed"
     make -j $CPUS
@@ -291,52 +280,60 @@ if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
     cd ..
     checkStatus $? "cd .. from 12bit failed"
 
-    # Prepare build 8 bit (optimized) - linking others
     echo "Configuring/Building 8bit optimized (linking 10/12bit)..."
-    ln -sf 10bit/libx265.a libx265_10bit.a # Use -sf for force/symbolic
+    ln -sf 10bit/libx265.a libx265_10bit.a
     checkStatus $? "symlink creation of 10 bit library failed"
     ln -sf 12bit/libx265.a libx265_12bit.a
     checkStatus $? "symlink creation of 12 bit library failed"
-    # Build 8bit in the main directory (x265-src)
+    # shellcheck disable=SC2086
     cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
-          -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
-          -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
           -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
           -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
           -DEXTRA_LINK_FLAGS=-L. \
           -DEXTRA_LIB="x265_10bit.a;x265_12bit.a" \
           -DLINKED_10BIT=ON -DLINKED_12BIT=ON \
-          -DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS" \
-          source # Configure from source subdir
+          -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
+          -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
+          ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
+          source
     checkStatus $? "configuration 8 bit optimized failed"
     make -j $CPUS
     checkStatus $? "build 8 bit optimized failed"
 
-    # Merge libraries
+    # --- Merge libraries (Reverted Linux part to original) ---
     echo "Merging libraries..."
     mv libx265.a libx265_8bit.a
     checkStatus $? "move 8 bit library failed"
     if [ "$OS_NAME" = "Linux" ]; then
-        # Using ar -M (thin archive) might be problematic for static linking later.
-        # Using standard 'ar cru' is safer.
-        echo "Creating combined archive using ar..."
-        ar cru libx265.a libx265_8bit.a libx265_10bit.a libx265_12bit.a
-        ranlib libx265.a # Create index
+        # Use ar -M as in the original working Linux script
+        # No explicit ranlib needed here based on original script
+        ar -M <<EOF
+CREATE libx265.a
+ADDLIB libx265_8bit.a
+ADDLIB libx265_10bit.a
+ADDLIB libx265_12bit.a
+SAVE
+END
+EOF
+        checkStatus $? "ar -M multi-bit library creation failed"
     elif [ "$OS_NAME" = "Darwin" ]; then
-        echo "Creating combined archive using libtool..."
+        # Keep using libtool for macOS
         libtool -static -o libx265.a libx265_8bit.a libx265_10bit.a libx265_12bit.a
+        checkStatus $? "libtool multi-bit library creation failed"
     fi
-    checkStatus $? "multi-bit library creation failed"
+    # --- End Merge libraries ---
+
 else
     # --- Single Build (8-bit only) ---
     echo "Starting single-bit (8bit) optimized build..."
+    # shellcheck disable=SC2086
     cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
-          -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
-          -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
           -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
           -DENABLE_SHARED=NO \
           -DENABLE_CLI=OFF \
-          -DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS" \
+          -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
+          -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
+          ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
           source
     checkStatus $? "configuration single-bit optimized failed"
     make -j $CPUS
@@ -350,34 +347,23 @@ checkStatus $? "installation failed"
 
 # --- Post-installation pkg-config fix ---
 echo "Applying post-installation fix to x265.pc..."
-# Determine where the .pc file was installed
 PKGCONFIG_PATH_LIB="$TOOL_DIR/lib/pkgconfig/x265.pc"
 PKGCONFIG_PATH_LIB64="$TOOL_DIR/lib64/pkgconfig/x265.pc"
 ACTUAL_PC_FILE=""
-
-if [ -f "$PKGCONFIG_PATH_LIB" ]; then
-    ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB"
-elif [ "$OS_NAME" = "Linux" ] && [ -f "$PKGCONFIG_PATH_LIB64" ]; then
-    ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB64"
-fi
+if [ -f "$PKGCONFIG_PATH_LIB" ]; then ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB"; fi
+if [ "$OS_NAME" = "Linux" ] && [ -f "$PKGCONFIG_PATH_LIB64" ]; then ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB64"; fi
 
 if [ -z "$ACTUAL_PC_FILE" ]; then
-    echo "Warning: x265.pc not found in expected pkgconfig directories after install!"
+    echo "Warning: x265.pc not found!"
 else
      echo "Found pkgconfig file at: $ACTUAL_PC_FILE"
-     # Add -lpthread if missing
      if ! grep -q -- "-lpthread" "$ACTUAL_PC_FILE"; then
          echo "Adding -lpthread to $ACTUAL_PC_FILE"
-         # Append to Libs.private if it exists, otherwise append to Libs
-         if grep -q "^Libs.private:" "$ACTUAL_PC_FILE"; then
-             run_sed "s|^Libs.private:.*|& -lpthread|" "$ACTUAL_PC_FILE"
-         else
-             run_sed "s|^Libs:.*|& -lpthread|" "$ACTUAL_PC_FILE"
-         fi
-          checkStatus $? "modify pkgconfig file failed"
-     else
-          echo "-lpthread already seems present in $ACTUAL_PC_FILE."
-     fi
+         # Use run_sed for cross-platform compatibility
+         if grep -q "^Libs.private:" "$ACTUAL_PC_FILE"; then run_sed "s|^Libs.private:.*|& -lpthread|" "$ACTUAL_PC_FILE";
+         else run_sed "s|^Libs:.*|& -lpthread|" "$ACTUAL_PC_FILE"; fi
+         checkStatus $? "modify pkgconfig file failed" # Check status after run_sed
+     else echo "-lpthread already seems present."; fi
 fi
 
-cd .. # Back to SOURCE_DIR/x265
+cd ../.. # Back to SOURCE_DIR/x265
