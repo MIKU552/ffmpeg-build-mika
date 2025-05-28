@@ -29,11 +29,6 @@ CPUS=$4
 # --- OS Detection ---
 OS_NAME=$(uname)
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/openjpeg")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -41,19 +36,44 @@ mkdir -p "openjpeg" # Use -p
 cd "openjpeg/"
 checkStatus $? "change directory failed"
 
+# Get latest openjpeg version from GitHub API
+echo "Fetching latest openjpeg version from GitHub..."
+LATEST_OPENJPEG_TAG=$(get_latest_github_release_tag "uclouvain/openjpeg")
+checkStatus $? "Failed to fetch latest openjpeg tag from GitHub"
+echo "Latest openjpeg tag: $LATEST_OPENJPEG_TAG" # Should be like vX.Y.Z
+
+LATEST_OPENJPEG_VERSION_NO_V=$(echo "$LATEST_OPENJPEG_TAG" | sed 's/^v//') # Remove 'v' prefix
+checkStatus $? "Failed to parse openjpeg version from tag (sed)"
+echo "Latest openjpeg version (no 'v'): $LATEST_OPENJPEG_VERSION_NO_V"
+
 # download source
-OPENJPEG_TARBALL="openjpeg-$VERSION.tar.gz"
-OPENJPEG_UNPACK_DIR="openjpeg-$VERSION"
-# Use gh-proxy if needed
-# download https://gh-proxy.com/https://github.com/uclouvain/openjpeg/archive/refs/tags/v$VERSION.tar.gz "$OPENJPEG_TARBALL"
-download https://github.com/uclouvain/openjpeg/archive/refs/tags/v$VERSION.tar.gz "$OPENJPEG_TARBALL"
+OPENJPEG_TARBALL="openjpeg-${LATEST_OPENJPEG_VERSION_NO_V}.tar.gz" # Consistent tarball naming
+OPENJPEG_UNPACK_DIR="openjpeg-${LATEST_OPENJPEG_VERSION_NO_V}" # Consistent unpack dir naming
+OPENJPEG_DOWNLOAD_URL="https://github.com/uclouvain/openjpeg/archive/refs/tags/${LATEST_OPENJPEG_TAG}.tar.gz"
+
+download "$OPENJPEG_DOWNLOAD_URL" "$OPENJPEG_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
 if [ -d "$OPENJPEG_UNPACK_DIR" ]; then
     rm -rf "$OPENJPEG_UNPACK_DIR"
 fi
+# GitHub tarballs usually unpack to <repo_name>-<tag_without_v_and_refs_tags>
+# e.g., openjpeg-2.5.0 if tag is v2.5.0
+# The script renames this to $OPENJPEG_UNPACK_DIR if different, but it should match.
 tar -zxf "$OPENJPEG_TARBALL"
+# If tarball unpacks to openjpeg-${LATEST_OPENJPEG_TAG} or similar, and it's different from $OPENJPEG_UNPACK_DIR
+# we might need to mv, but typically it's <reponame>-<version_no_v>
+# The current script structure implies the tarball directly contains files or unpacks to the desired name.
+# For GitHub archives, it unpacks to openjpeg-<commit_hash_or_tag_without_v>.
+# Let's assume it unpacks to openjpeg-${LATEST_OPENJPEG_VERSION_NO_V} or we rename it.
+# The script already has logic to handle this by unpacking and then `cd "$BUILD_DIR"` and `SOURCE_REL_PATH="../$OPENJPEG_UNPACK_DIR"`
+# This means the outer directory name after tar -zxf needs to be $OPENJPEG_UNPACK_DIR
+# GitHub archives often create a directory like `reponame-tag` (e.g. `openjpeg-v2.5.0`).
+# We need to ensure $OPENJPEG_UNPACK_DIR matches this.
+# The current script sets OPENJPEG_UNPACK_DIR="openjpeg-$VERSION".
+# If LATEST_OPENJPEG_VERSION_NO_V is "2.5.0", then OPENJPEG_UNPACK_DIR will be "openjpeg-2.5.0".
+# The tarball `v2.5.0.tar.gz` from GitHub unpacks to `openjpeg-2.5.0`. This matches.
 checkStatus $? "unpack failed"
 rm "$OPENJPEG_TARBALL" # Clean up tarball
 

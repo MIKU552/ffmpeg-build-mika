@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libtheora")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,14 +32,39 @@ checkStatus $? "create directory failed"
 cd "libtheora/"
 checkStatus $? "change directory failed"
 
+# Get latest libtheora version from Xiph.org
+echo "Fetching latest libtheora version from Xiph.org..."
+LATEST_LIBTHEORA_VERSION=$(get_latest_html_link_version \
+    "https://downloads.xiph.org/releases/theora/" \
+    'href="libtheora-([0-9\.\-a-zA-Z]+)\.tar\.(gz|xz|bz2)"' \
+    's|.*libtheora-([0-9\.\-a-zA-Z]+)\.tar\.(gz|xz|bz2).*|\1|' \
+    '^[0-9]+\.[0-9]+(\.[0-9\.\-a-zA-Z])*$') # More flexible version filter for alphas/betas like 1.2.0alpha1
+checkStatus $? "Failed to fetch latest libtheora version"
+echo "Latest libtheora version: $LATEST_LIBTHEORA_VERSION"
+
+# Determine tarball extension
+LIBTHEORA_TARBALL_EXT=$(determine_tarball_extension \
+    "https://downloads.xiph.org/releases/theora/libtheora-${LATEST_LIBTHEORA_VERSION}" \
+    ".tar.xz") # Default to .tar.xz as per previous script version
+checkStatus $? "Failed to determine tarball extension for libtheora"
+echo "Using extension: $LIBTHEORA_TARBALL_EXT"
+
 # download source
-download http://downloads.xiph.org/releases/theora/libtheora-$VERSION.tar.xz "libtheora.tar.xz"
+LIBTHEORA_TARBALL="libtheora-${LATEST_LIBTHEORA_VERSION}${LIBTHEORA_TARBALL_EXT}"
+LIBTHEORA_UNPACK_DIR="libtheora-${LATEST_LIBTHEORA_VERSION}"
+download "http://downloads.xiph.org/releases/theora/${LIBTHEORA_TARBALL}" "$LIBTHEORA_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -xvf "libtheora.tar.xz"
+if [ "$LIBTHEORA_TARBALL_EXT" = ".tar.xz" ]; then
+    tar -xvf "$LIBTHEORA_TARBALL"
+elif [ "$LIBTHEORA_TARBALL_EXT" = ".tar.bz2" ]; then
+    tar -xjf "$LIBTHEORA_TARBALL"
+else # .tar.gz
+    tar -zxf "$LIBTHEORA_TARBALL"
+fi
 checkStatus $? "unpack (tar)"
-cd "libtheora-$VERSION/"
+cd "$LIBTHEORA_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build

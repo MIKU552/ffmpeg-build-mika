@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/aom")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,12 +32,22 @@ checkStatus $? "create directory failed"
 cd "aom/"
 checkStatus $? "change directory failed"
 
+# Get latest AOM version from GitHub API
+echo "Fetching latest AOM version from GitHub..."
+LATEST_AOM_TAG=$(curl -s https://api.github.com/repos/AOMediaCodec/libaom/releases/latest | jq -r '.tag_name')
+checkStatus $? "Failed to fetch latest AOM version tag"
+# Remove 'v' prefix if present (e.g. v3.6.0 -> 3.6.0)
+LATEST_AOM_VERSION=$(echo "$LATEST_AOM_TAG" | sed 's/^v//')
+echo "Latest AOM version: $LATEST_AOM_VERSION"
+
 # download source
-download https://storage.googleapis.com/aom-releases/libaom-$VERSION.tar.gz "libaom.tar.gz"
+AOM_TARBALL="libaom-$LATEST_AOM_VERSION.tar.gz"
+AOM_UNPACK_DIR="libaom-$LATEST_AOM_VERSION"
+download https://storage.googleapis.com/aom-releases/$AOM_TARBALL "$AOM_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -zxf "libaom.tar.gz"
+tar -zxf "$AOM_TARBALL"
 checkStatus $? "unpack failed"
 
 # prepare build
@@ -51,7 +56,7 @@ checkStatus $? "create build directory failed"
 cd aom_build
 checkStatus $? "change build directory failed"
 # Enable LTO for AOM
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DENABLE_TESTS=0 -DENABLE_LTO=1 ../libaom-$VERSION/
+cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DENABLE_TESTS=0 -DENABLE_LTO=1 ../$AOM_UNPACK_DIR/
 checkStatus $? "configuration failed"
 
 # build

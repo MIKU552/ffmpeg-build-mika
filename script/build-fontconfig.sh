@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/fontconfig")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,14 +32,22 @@ checkStatus $? "create directory failed"
 cd "fontconfig/"
 checkStatus $? "change directory failed"
 
+# Get latest fontconfig version
+echo "Fetching latest fontconfig version..."
+LATEST_FONTCONFIG_VERSION=$(curl -s https://www.freedesktop.org/software/fontconfig/release/ | grep -oP 'fontconfig-\d+\.\d+(\.\d+)?\.tar\.xz' | sed -E 's/fontconfig-(.*)\.tar\.xz/\1/' | sort -V | tail -n 1)
+checkStatus $? "Failed to fetch latest fontconfig version"
+echo "Latest fontconfig version: $LATEST_FONTCONFIG_VERSION"
+
 # download source
-download https://www.freedesktop.org/software/fontconfig/release/fontconfig-$VERSION.tar.xz "fontconfig.tar.xz"
+FONTCONFIG_TARBALL="fontconfig-$LATEST_FONTCONFIG_VERSION.tar.xz"
+FONTCONFIG_UNPACK_DIR="fontconfig-$LATEST_FONTCONFIG_VERSION"
+download https://www.freedesktop.org/software/fontconfig/release/$FONTCONFIG_TARBALL "$FONTCONFIG_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -xvf "fontconfig.tar.xz"
+tar -xvf "$FONTCONFIG_TARBALL"
 checkStatus $? "unpack failed"
-cd "fontconfig-$VERSION/"
+cd "$FONTCONFIG_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build

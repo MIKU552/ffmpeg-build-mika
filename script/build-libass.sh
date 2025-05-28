@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libass")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,14 +32,24 @@ checkStatus $? "create directory failed"
 cd "libass/"
 checkStatus $? "change directory failed"
 
+# Get latest libass version from GitHub API
+echo "Fetching latest libass version from GitHub..."
+LATEST_LIBASS_TAG=$(get_latest_github_release_tag "libass/libass")
+checkStatus $? "Failed to fetch latest libass tag from GitHub"
+# Assuming tag is the version number itself (e.g., 0.17.1)
+LATEST_LIBASS_VERSION="$LATEST_LIBASS_TAG"
+echo "Latest libass version: $LATEST_LIBASS_VERSION"
+
 # download source
-download https://gh-proxy.com/https://github.com/libass/libass/releases/download/$VERSION/libass-$VERSION.tar.gz "libass.tar.gz"
+LIBASS_TARBALL="libass-${LATEST_LIBASS_VERSION}.tar.gz"
+LIBASS_UNPACK_DIR="libass-${LATEST_LIBASS_VERSION}"
+download "https://github.com/libass/libass/releases/download/${LATEST_LIBASS_TAG}/${LIBASS_TARBALL}" "$LIBASS_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -zxf "libass.tar.gz"
+tar -zxf "$LIBASS_TARBALL"
 checkStatus $? "unpack failed"
-cd "libass-$VERSION/"
+cd "$LIBASS_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build

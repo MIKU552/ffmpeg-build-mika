@@ -40,13 +40,14 @@ if [ "$FFMPEG_SNAPSHOT" = "YES" ]; then
     # Use snapshot URL - ensure correct format
     FFMPEG_TARBALL_URL="https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2"
 else
-    # load version from file
-    if [ ! -f "$SCRIPT_DIR/../version/ffmpeg" ]; then
-        echo "ERROR: Version file not found at $SCRIPT_DIR/../version/ffmpeg"
-        exit 1
-    fi
-    VERSION=$(cat "$SCRIPT_DIR/../version/ffmpeg")
-    checkStatus $? "load version failed"
+    # Fetch latest FFmpeg release version from GitHub API
+    echo "Fetching latest FFmpeg release version from GitHub..."
+    LATEST_FFMPEG_TAG=$(curl -s https://api.github.com/repos/FFmpeg/FFmpeg/releases/latest | jq -r '.tag_name')
+    checkStatus $? "Failed to fetch latest FFmpeg release tag"
+    # Remove 'n' prefix (e.g. n6.0 -> 6.0)
+    VERSION=$(echo "$LATEST_FFMPEG_TAG" | sed 's/^n//')
+    checkStatus $? "Failed to parse FFmpeg version from tag"
+    echo "Latest FFmpeg version: $VERSION"
     FFMPEG_TARBALL_URL="https://ffmpeg.org/releases/ffmpeg-$VERSION.tar.bz2"
 fi
 echo "FFmpeg version: $VERSION"

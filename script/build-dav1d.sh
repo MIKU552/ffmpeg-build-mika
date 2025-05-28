@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/dav1d")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,19 +32,29 @@ checkStatus $? "create directory failed"
 cd "dav1d/"
 checkStatus $? "change directory failed"
 
+# Get latest dav1d version from VideoLAN GitLab API
+echo "Fetching latest dav1d version from VideoLAN GitLab API..."
+LATEST_DAV1D_TAG=$(get_latest_gitlab_release_tag "code.videolan.org/videolan%2Fdav1d")
+checkStatus $? "Failed to fetch latest dav1d tag from GitLab"
+# Assuming tag is the version number itself (e.g., 1.2.1)
+LATEST_DAV1D_VERSION="$LATEST_DAV1D_TAG"
+echo "Latest dav1d version: $LATEST_DAV1D_VERSION"
+
 # download source
-download https://code.videolan.org/videolan/dav1d/-/archive/$VERSION/dav1d-$VERSION.tar.gz "dav1d.tar.gz"
+DAV1D_TARBALL="dav1d-${LATEST_DAV1D_VERSION}.tar.gz"
+DAV1D_UNPACK_DIR="dav1d-${LATEST_DAV1D_VERSION}"
+download "https://code.videolan.org/videolan/dav1d/-/archive/${LATEST_DAV1D_TAG}/${DAV1D_TARBALL}" "${DAV1D_TARBALL}"
 checkStatus $? "download failed"
 
 # unpack
-tar -zxf "dav1d.tar.gz"
+tar -zxf "${DAV1D_TARBALL}"
 checkStatus $? "unpack failed"
 
 # prepare python3 virtual environment / meson
 prepareMeson
 
 # prepare build
-cd "dav1d-$VERSION/"
+cd "${DAV1D_UNPACK_DIR}/"
 checkStatus $? "change directory failed"
 # Enable LTO for dav1d using Meson option
 meson build --prefix "$TOOL_DIR" --libdir=lib --default-library=static -Db_lto=true

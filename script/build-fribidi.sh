@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/fribidi")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,14 +32,25 @@ checkStatus $? "create directory failed"
 cd "fribidi/"
 checkStatus $? "change directory failed"
 
+# Get latest fribidi version from GitHub API
+echo "Fetching latest fribidi version from GitHub..."
+LATEST_FRIBIDI_TAG=$(curl -s https://api.github.com/repos/fribidi/fribidi/releases/latest | jq -r '.tag_name')
+checkStatus $? "Failed to fetch latest fribidi tag"
+# Version for directory and tarball name usually doesn't have 'v'
+LATEST_FRIBIDI_VERSION=$(echo "$LATEST_FRIBIDI_TAG" | sed 's/^v//')
+checkStatus $? "Failed to parse fribidi version from tag"
+echo "Latest fribidi version: $LATEST_FRIBIDI_VERSION (tag: $LATEST_FRIBIDI_TAG)"
+
 # download source
-download https://gh-proxy.com/https://github.com/fribidi/fribidi/releases/download/v$VERSION/fribidi-$VERSION.tar.xz "fribidi.tar.xz"
+FRIBIDI_TARBALL="fribidi-$LATEST_FRIBIDI_VERSION.tar.xz"
+FRIBIDI_UNPACK_DIR="fribidi-$LATEST_FRIBIDI_VERSION"
+download https://github.com/fribidi/fribidi/releases/download/$LATEST_FRIBIDI_TAG/$FRIBIDI_TARBALL "$FRIBIDI_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -xf "fribidi.tar.xz"
+tar -xf "$FRIBIDI_TARBALL"
 checkStatus $? "unpack failed"
-cd "fribidi-$VERSION/"
+cd "$FRIBIDI_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build

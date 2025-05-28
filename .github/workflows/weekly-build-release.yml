@@ -1,0 +1,61 @@
+name: FFmpeg Build CI
+
+on: [push, pull_request] # Adjust triggers as needed
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04 # Or your desired Linux runner
+
+    steps:
+      # 1. Checkout the repository including LFS files
+      - name: Checkout repository
+        uses: actions/checkout@v4 # Use a current version like v4
+        with:
+          lfs: true # <-- This line enables Git LFS download
+
+      # 2. Install system dependencies (Make sure git-lfs is included or pre-installed)
+      #    GitHub hosted runners usually have git-lfs pre-installed.
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential gcc g++ binutils make cmake ninja-build pkg-config \
+            curl tar bzip2 xz-utils python3 python3-pip python3-venv python3-virtualenv nasm git-lfs \
+            docbook-utils xsltproc asciidoc xmlto gperf autopoint automake libtool autoconf \
+            # Add any other necessary packages like autoconf, libtool if needed by specific autogen.sh scripts
+          # Verify LFS install if needed: git lfs version
+
+      # 3. Install Rust/Cargo if needed by dependencies (like rav1e)
+      - name: Install Rust and cargo-c
+        uses: dtolnay/rust-toolchain@stable
+        # Add components if needed, e.g., with: components: rustfmt, clippy
+      - run: cargo install cargo-c --locked # Install cargo-c for rav1e
+
+      # (Optional) Explicitly pull LFS files if needed, though lfs:true usually suffices
+      # - name: Pull Git LFS files
+      #   run: git lfs pull
+
+      # 4. Run your build script
+      - name: Run Build Script
+        id: build_script # Assign an ID to the step
+        run: ./build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES # Skip tests in CI maybe?
+
+      # 5. Upload Build Artifacts (Only on Success)
+      - name: Upload Build Artifacts
+        if: success() # Run only if previous steps succeeded
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-linux-gcc-build
+          path: |
+            ffmpeg-build.tar.gz
+            log/ # Upload logs even on success for inspection
+          if-no-files-found: error # Optional: fail if the bundle is missing
+
+      # 6. Upload Logs (Only on Failure) - ADD THIS STEP
+      - name: Upload Logs on Failure
+        if: failure() # Run only if any previous step failed
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-build-logs-on-failure-(ubuntu-24.04-gcc) # Descriptive name
+          path: log/
+          if-no-files-found: ignore # Don't error if log dir is empty or missing

@@ -29,11 +29,6 @@ CPUS=$4
 # --- OS Detection ---
 OS_NAME=$(uname)
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/zimg")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -41,12 +36,21 @@ mkdir -p "zimg" # Use -p
 cd "zimg/"
 checkStatus $? "change directory failed"
 
+# Get latest zimg version from GitHub API
+echo "Fetching latest zimg version from GitHub..."
+LATEST_ZIMG_TAG=$(get_latest_github_release_tag "sekrit-twc/zimg")
+checkStatus $? "Failed to fetch latest zimg tag from GitHub"
+echo "Latest zimg tag: $LATEST_ZIMG_TAG" # Should be like release-X.Y.Z
+
 # download source
-ZIMG_TARBALL="zimg-$VERSION.tar.gz" # Consistent name
-ZIMG_UNPACK_DIR="zimg-release-$VERSION" # Match unpack dir name
-# Use gh-proxy if needed
-# download https://gh-proxy.com/https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz "$ZIMG_TARBALL"
-download https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz "$ZIMG_TARBALL"
+# Tarball name can be kept simple, download URL uses the tag.
+ZIMG_TARBALL="zimg-latest.tar.gz"
+# The directory created by tar -zxf for GitHub archives is typically <repo_name>-<tag_name>
+# e.g. zimg-release-3.0.5 if tag is release-3.0.5. This matches the existing ZIMG_UNPACK_DIR logic.
+ZIMG_UNPACK_DIR="zimg-${LATEST_ZIMG_TAG}"
+ZIMG_DOWNLOAD_URL="https://github.com/sekrit-twc/zimg/archive/refs/tags/${LATEST_ZIMG_TAG}.tar.gz"
+
+download "$ZIMG_DOWNLOAD_URL" "$ZIMG_TARBALL"
 checkStatus $? "download failed"
 
 # unpack

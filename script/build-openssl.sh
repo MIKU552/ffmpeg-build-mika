@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/openssl")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,14 +32,29 @@ checkStatus $? "create directory failed"
 cd "openssl/"
 checkStatus $? "change directory failed"
 
+# Get latest openssl version from GitHub API
+echo "Fetching latest openssl version from GitHub..."
+LATEST_OPENSSL_TAG=$(get_latest_github_release_tag "openssl/openssl")
+checkStatus $? "Failed to fetch latest openssl tag from GitHub"
+echo "Latest openssl tag: $LATEST_OPENSSL_TAG" # e.g., openssl-3.2.0
+
+# Extract version from tag (e.g., "openssl-3.2.0" -> "3.2.0")
+LATEST_OPENSSL_VERSION=$(echo "$LATEST_OPENSSL_TAG" | sed 's/^openssl-//')
+checkStatus $? "Failed to parse openssl version from tag (sed)"
+echo "Latest openssl version: $LATEST_OPENSSL_VERSION"
+
 # download source
-download https://gh-proxy.com/https://github.com/openssl/openssl/releases/download/openssl-$VERSION/openssl-$VERSION.tar.gz "openssl.tar.gz"
+# The download URL uses the full tag, and the tarball also includes the version.
+OPENSSL_DOWNLOAD_URL="https://github.com/openssl/openssl/releases/download/${LATEST_OPENSSL_TAG}/openssl-${LATEST_OPENSSL_VERSION}.tar.gz"
+OPENSSL_UNPACK_DIR="openssl-${LATEST_OPENSSL_VERSION}"
+
+download "$OPENSSL_DOWNLOAD_URL" "openssl.tar.gz" # Use a fixed downloaded tarball name
 checkStatus $? "download failed"
 
 # unpack
 tar -zxf "openssl.tar.gz"
 checkStatus $? "unpack failed"
-cd "openssl-$VERSION/"
+cd "$OPENSSL_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build

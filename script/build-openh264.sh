@@ -29,11 +29,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/openh264")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -42,14 +37,28 @@ checkStatus $? "create directory failed"
 cd "openh264/"
 checkStatus $? "change directory failed"
 
+# Get latest openh264 version from GitHub API
+echo "Fetching latest openh264 version from GitHub..."
+LATEST_OPENH264_TAG=$(get_latest_github_release_tag "cisco/openh264")
+checkStatus $? "Failed to fetch latest openh264 tag from GitHub"
+echo "Latest openh264 tag: $LATEST_OPENH264_TAG" # Should be like vX.Y.Z
+
+LATEST_OPENH264_VERSION_NO_V=$(echo "$LATEST_OPENH264_TAG" | sed 's/^v//') # Remove 'v' prefix
+checkStatus $? "Failed to parse openh264 version from tag (sed)"
+echo "Latest openh264 version (no 'v'): $LATEST_OPENH264_VERSION_NO_V"
+
 # download source
-download https://gh-proxy.com/https://github.com/cisco/openh264/archive/v$VERSION.tar.gz "openh264.tar.gz"
+OPENH264_DOWNLOAD_URL="https://github.com/cisco/openh264/archive/refs/tags/${LATEST_OPENH264_TAG}.tar.gz"
+# The directory created by tar -zxf for GitHub archives is typically <repo_name>-<tag_name_without_v_prefix>
+OPENH264_UNPACK_DIR="openh264-${LATEST_OPENH264_VERSION_NO_V}"
+
+download "$OPENH264_DOWNLOAD_URL" "openh264.tar.gz" # Use a fixed downloaded tarball name
 checkStatus $? "download failed"
 
 # unpack
 tar -zxf "openh264.tar.gz"
 checkStatus $? "unpack failed"
-cd "openh264-$VERSION/"
+cd "$OPENH264_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # build

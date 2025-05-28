@@ -29,11 +29,6 @@ TOOL_DIR=$3
 # --- OS Detection ---
 OS_NAME=$(uname)
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/pkg-config")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -44,7 +39,17 @@ checkStatus $? "change directory failed"
 # download source
 PKG_SUBDIR="pkg-config-src" # Use subdirectory
 mkdir -p "$PKG_SUBDIR"
-download https://pkg-config.freedesktop.org/releases/pkg-config-$VERSION.tar.gz "pkg-config.tar.gz"
+
+echo "Fetching latest pkg-config version from freedesktop.org..."
+LATEST_PKGCONFIG_VERSION=$(curl -sL https://pkg-config.freedesktop.org/releases/ | \
+    grep -oP 'href="pkg-config-([0-9\.]+)\.tar\.gz"' | \
+    sed -E 's|href="pkg-config-([0-9\.]+)\.tar\.gz"|\1|' | \
+    grep -E '^[0-9]+\.[0-9]+(\.[0-9]+)*$' | \
+    sort -V | tail -n 1)
+checkStatus $? "Failed to fetch latest pkg-config version"
+echo "Latest pkg-config version: $LATEST_PKGCONFIG_VERSION"
+
+download https://pkg-config.freedesktop.org/releases/pkg-config-$LATEST_PKGCONFIG_VERSION.tar.gz "pkg-config.tar.gz"
 checkStatus $? "download of pkg-config failed"
 
 # unpack

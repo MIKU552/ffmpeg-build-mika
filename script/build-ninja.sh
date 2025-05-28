@@ -26,11 +26,6 @@ LOG_DIR="$(pwd)/log"
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/ninja")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -44,7 +39,12 @@ if [ -d "ninja" ]; then
     echo "skip download"
 else
     # download now
-    download https://gh-proxy.com/https://github.com/ninja-build/ninja/archive/refs/tags/v$VERSION.tar.gz "ninja.tar.gz"
+    echo "Fetching latest ninja version from GitHub..."
+    LATEST_NINJA_TAG=$(curl -s https://api.github.com/repos/ninja-build/ninja/releases/latest | jq -r '.tag_name')
+    checkStatus $? "Failed to fetch latest ninja tag"
+    echo "Latest ninja tag: $LATEST_NINJA_TAG" # Should be like vX.Y.Z
+
+    download https://github.com/ninja-build/ninja/archive/refs/tags/${LATEST_NINJA_TAG}.tar.gz "ninja.tar.gz"
     checkStatus $? "download failed"
 
     # unpack

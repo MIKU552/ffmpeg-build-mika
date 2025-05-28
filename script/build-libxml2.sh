@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libxml2")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,14 +32,27 @@ checkStatus $? "create directory failed"
 cd "libxml2/"
 checkStatus $? "change directory failed"
 
+# Get latest libxml2 version from GitLab API
+echo "Fetching latest libxml2 version from GitLab API..."
+LATEST_LIBXML2_TAG=$(get_latest_gitlab_release_tag "gitlab.gnome.org/GNOME%2Flibxml2")
+checkStatus $? "Failed to fetch latest libxml2 tag from GitLab"
+echo "Latest libxml2 tag: $LATEST_LIBXML2_TAG" # Should be like vX.Y.Z
+
 # download source
-download https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$VERSION/libxml2-v$VERSION.tar.gz "libxml2.tar.gz"
+# The tarball name from GitLab archive URL typically uses the tag directly.
+LIBXML2_TARBALL_NAME="libxml2-${LATEST_LIBXML2_TAG}.tar.gz"
+LIBXML2_DOWNLOAD_URL="https://gitlab.gnome.org/GNOME/libxml2/-/archive/${LATEST_LIBXML2_TAG}/${LIBXML2_TARBALL_NAME}"
+# The directory created by tar -zxf is typically <repo_name>-<tag_name_with_commit_sha_if_not_a_clean_tag>
+# For libxml2, if tag is v2.9.14, directory is libxml2-v2.9.14
+LIBXML2_UNPACK_DIR="libxml2-${LATEST_LIBXML2_TAG}"
+
+download "$LIBXML2_DOWNLOAD_URL" "libxml2.tar.gz" # Use a fixed downloaded tarball name
 checkStatus $? "download failed"
 
 # unpack
 tar -zxf "libxml2.tar.gz"
 checkStatus $? "unpack failed"
-cd "libxml2-v$VERSION/"
+cd "$LIBXML2_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # check for pre-generated configure file

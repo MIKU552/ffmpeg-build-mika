@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libwebp")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,8 +32,22 @@ checkStatus $? "create directory failed"
 cd "libwebp/"
 checkStatus $? "change directory failed"
 
+# Get latest libwebp version from GitHub API
+echo "Fetching latest libwebp version from GitHub..."
+LATEST_LIBWEBP_TAG=$(curl -s https://api.github.com/repos/webmproject/libwebp/releases/latest | jq -r '.tag_name')
+checkStatus $? "Failed to fetch latest libwebp tag"
+echo "Latest libwebp tag: $LATEST_LIBWEBP_TAG"
+# Version for directory name usually doesn't have 'v'
+LATEST_LIBWEBP_VERSION_NO_V=$(echo "$LATEST_LIBWEBP_TAG" | sed 's/^v//')
+checkStatus $? "Failed to parse libwebp version from tag"
+
 # download source
-download https://gh-proxy.com/https://github.com/webmproject/libwebp/archive/refs/tags/v$VERSION.tar.gz "libwebp.tar.gz"
+# Tarball name from GitHub is usually just $TAG.tar.gz, but script uses libwebp.tar.gz
+LIBWEBP_DOWNLOAD_URL="https://github.com/webmproject/libwebp/archive/refs/tags/${LATEST_LIBWEBP_TAG}.tar.gz"
+# The directory created by tar -zxf for GitHub archives is typically <repo_name>-<tag_name_without_v_prefix>
+LIBWEBP_UNPACK_DIR_ROOT="libwebp-${LATEST_LIBWEBP_VERSION_NO_V}"
+
+download $LIBWEBP_DOWNLOAD_URL "libwebp.tar.gz" # Use a fixed downloaded tarball name
 checkStatus $? "download failed"
 
 # unpack
@@ -50,7 +59,7 @@ mkdir libwebp_build
 checkStatus $? "create build directory failed"
 cd libwebp_build
 checkStatus $? "change build directory failed"
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DWEBP_BUILD_CWEBP=OFF -DWEBP_BUILD_DWEBP=OFF -DWEBP_BUILD_GIF2WEBP=OFF -DWEBP_BUILD_IMG2WEBP=OFF -DWEBP_BUILD_VWEBP=OFF -DWEBP_BUILD_WEBPINFO=OFF -DWEBP_BUILD_WEBPMUX=OFF -DWEBP_BUILD_EXTRAS=OFF ../libwebp-$VERSION/
+cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DWEBP_BUILD_CWEBP=OFF -DWEBP_BUILD_DWEBP=OFF -DWEBP_BUILD_GIF2WEBP=OFF -DWEBP_BUILD_IMG2WEBP=OFF -DWEBP_BUILD_VWEBP=OFF -DWEBP_BUILD_WEBPINFO=OFF -DWEBP_BUILD_WEBPMUX=OFF -DWEBP_BUILD_EXTRAS=OFF ../$LIBWEBP_UNPACK_DIR_ROOT/
 checkStatus $? "configuration failed"
 
 # build

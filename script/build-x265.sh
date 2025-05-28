@@ -31,11 +31,6 @@ SKIP_X265_MULTIBIT=$5
 # --- OS Detection ---
 OS_NAME=$(uname)
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/x265")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -44,9 +39,9 @@ cd "x265/"
 checkStatus $? "change directory failed"
 
 # download source
-X265_TARBALL="x265-$VERSION.tar.gz"
+X265_TARBALL="x265-master.tar.gz"
 X265_UNPACK_DIR="x265-src"
-download https://bitbucket.org/multicoreware/x265_git/get/$VERSION.tar.gz "$X265_TARBALL"
+download https://bitbucket.org/multicoreware/x265_git/get/master.tar.gz "$X265_TARBALL"
 checkStatus $? "download of x265 failed"
 
 # unpack

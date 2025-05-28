@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/srt")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,20 +32,36 @@ checkStatus $? "create directory failed"
 cd "srt/"
 checkStatus $? "change directory failed"
 
+# Get latest srt version from GitHub API
+echo "Fetching latest srt version from GitHub..."
+LATEST_SRT_TAG=$(get_latest_github_release_tag "Haivision/srt")
+checkStatus $? "Failed to fetch latest srt tag from GitHub"
+echo "Latest srt tag: $LATEST_SRT_TAG" # Should be like vX.Y.Z
+
+LATEST_SRT_VERSION_NO_V=$(echo "$LATEST_SRT_TAG" | sed 's/^v//') # Remove 'v' prefix
+checkStatus $? "Failed to parse srt version from tag (sed)"
+echo "Latest srt version (no 'v'): $LATEST_SRT_VERSION_NO_V"
+
 # download source
-download https://gh-proxy.com/https://github.com/Haivision/srt/archive/refs/tags/v$VERSION.tar.gz "srt.tar.gz"
+SRT_DOWNLOAD_URL="https://github.com/Haivision/srt/archive/refs/tags/${LATEST_SRT_TAG}.tar.gz"
+# The directory created by tar -zxf for GitHub archives is typically <repo_name>-<tag_name_without_v_prefix>
+SRT_UNPACK_DIR_ROOT="srt-${LATEST_SRT_VERSION_NO_V}"
+
+download "$SRT_DOWNLOAD_URL" "srt.tar.gz" # Use a fixed downloaded tarball name
 checkStatus $? "download failed"
 
 # unpack
 tar -zxf "srt.tar.gz"
 checkStatus $? "unpack failed"
+# Note: The tarball unpacks to srt-${LATEST_SRT_VERSION_NO_V}
+# The build will happen in a subdirectory.
 
 # prepare build
 mkdir srt_build
 checkStatus $? "create build directory failed"
 cd srt_build
 checkStatus $? "change build directory failed"
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DENABLE_SHARED=OFF -DENABLE_APPS=OFF ../srt-$VERSION/
+cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DENABLE_SHARED=OFF -DENABLE_APPS=OFF ../$SRT_UNPACK_DIR_ROOT/
 checkStatus $? "configuration failed"
 
 # build

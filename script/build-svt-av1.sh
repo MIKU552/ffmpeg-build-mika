@@ -30,11 +30,6 @@ CPUS=$4
 # --- OS Detection ---
 OS_NAME=$(uname)
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/svt-av1")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -43,19 +38,9 @@ cd "svt-av1/"
 checkStatus $? "change directory failed"
 
 # download source
-SVT_TARBALL="SVT-AV1-$VERSION.tar.gz"
-SVT_UNPACK_DIR="SVT-AV1-$VERSION"
-# Consider adding proxy if needed: https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/$VERSION/$SVT_TARBALL
-download https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/$VERSION/$SVT_TARBALL "$SVT_TARBALL"
-checkStatus $? "download failed"
-
-# unpack
-tar -zxf "$SVT_TARBALL"
-checkStatus $? "unpack failed"
-rm "$SVT_TARBALL" # Clean up
-
-# prepare build
-cd "$SVT_UNPACK_DIR/" # cd into unpacked dir first
+git clone https://gitlab.com/AOMediaCodec/SVT-AV1.git SVT-AV1-src
+checkStatus $? "git clone failed"
+cd "SVT-AV1-src/"
 checkStatus $? "change directory failed"
 
 # OS-Specific sed patches

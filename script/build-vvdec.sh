@@ -30,11 +30,6 @@ CPUS=$4
 # --- OS Detection ---
 OS_NAME=$(uname)
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/vvdec")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -43,21 +38,13 @@ cd "vvdec/"
 checkStatus $? "change directory failed"
 
 # download source
-VVDEC_TARBALL="vvdec-$VERSION.tar.gz"
-VVDEC_UNPACK_DIR="vvdec-$VERSION"
-download https://github.com/fraunhoferhhi/vvdec/archive/$VERSION.tar.gz "$VVDEC_TARBALL"
-checkStatus $? "download failed"
-
-# unpack
-tar -zxf "$VVDEC_TARBALL"
-checkStatus $? "unpack failed"
-rm "$VVDEC_TARBALL" # Clean up
+git clone https://github.com/fraunhoferhhi/vvdec.git vvdec-src
+checkStatus $? "git clone failed"
+cd "vvdec-src/"
+checkStatus $? "change directory failed"
 
 # --- PGO Step 1: Build Instrumented Binary ---
 echoSection "Build vvdec PGO Generator"
-cd "$VVDEC_UNPACK_DIR/"
-checkStatus $? "change directory failed"
-
 mkdir -p "pgogen"
 checkStatus $? "create directory failed"
 cd "pgogen/"

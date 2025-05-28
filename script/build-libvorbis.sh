@@ -29,11 +29,6 @@ CPUS=$4
 # --- OS Detection ---
 OS_NAME=$(uname)
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libvorbis")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -41,14 +36,38 @@ mkdir -p "libvorbis" # Use -p
 cd "libvorbis/"
 checkStatus $? "change directory failed"
 
+# Get latest libvorbis version from Xiph.org
+echo "Fetching latest libvorbis version from Xiph.org..."
+LATEST_LIBVORBIS_VERSION=$(get_latest_html_link_version \
+    "https://downloads.xiph.org/releases/vorbis/" \
+    'href="libvorbis-([0-9\.]+)\.tar\.(gz|xz|bz2)"' \
+    's|.*libvorbis-([0-9\.]+)\.tar\.(gz|xz|bz2).*|\1|')
+checkStatus $? "Failed to fetch latest libvorbis version"
+echo "Latest libvorbis version: $LATEST_LIBVORBIS_VERSION"
+
+# Determine tarball extension
+LIBVORBIS_TARBALL_EXT=$(determine_tarball_extension \
+    "https://downloads.xiph.org/releases/vorbis/libvorbis-${LATEST_LIBVORBIS_VERSION}" \
+    ".tar.gz") # Default to .tar.gz
+checkStatus $? "Failed to determine tarball extension for libvorbis"
+echo "Using extension: $LIBVORBIS_TARBALL_EXT"
+
 # download source
-download https://ftp.osuosl.org/pub/xiph/releases/vorbis/libvorbis-$VERSION.tar.gz "libvorbis.tar.gz"
+LIBVORBIS_TARBALL="libvorbis-${LATEST_LIBVORBIS_VERSION}${LIBVORBIS_TARBALL_EXT}"
+LIBVORBIS_UNPACK_DIR="libvorbis-${LATEST_LIBVORBIS_VERSION}"
+download "https://ftp.osuosl.org/pub/xiph/releases/vorbis/${LIBVORBIS_TARBALL}" "$LIBVORBIS_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -zxf "libvorbis.tar.gz"
+if [ "$LIBVORBIS_TARBALL_EXT" = ".tar.xz" ]; then
+    tar -xf "$LIBVORBIS_TARBALL"
+elif [ "$LIBVORBIS_TARBALL_EXT" = ".tar.bz2" ]; then
+    tar -xjf "$LIBVORBIS_TARBALL"
+else # .tar.gz
+    tar -zxf "$LIBVORBIS_TARBALL"
+fi
 checkStatus $? "unpack failed"
-cd "libvorbis-$VERSION/"
+cd "$LIBVORBIS_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build

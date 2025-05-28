@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/sdl")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,14 +32,28 @@ checkStatus $? "create directory failed"
 cd "sdl/"
 checkStatus $? "change directory failed"
 
+# Get latest SDL2 version from GitHub API
+echo "Fetching latest SDL2 version from GitHub..."
+LATEST_SDL_TAG=$(get_latest_github_release_tag "libsdl-org/SDL")
+checkStatus $? "Failed to fetch latest SDL2 tag from GitHub"
+echo "Latest SDL2 tag: $LATEST_SDL_TAG" # Should be like release-X.Y.Z
+
+LATEST_SDL_VERSION=$(echo "$LATEST_SDL_TAG" | sed 's/^release-//') # Remove 'release-' prefix
+checkStatus $? "Failed to parse SDL2 version from tag (sed)"
+echo "Latest SDL2 version: $LATEST_SDL_VERSION"
+
 # download source
-download https://www.libsdl.org/release/SDL2-$VERSION.tar.gz "SDL2.tar.gz"
+SDL_TARBALL="SDL2-${LATEST_SDL_VERSION}.tar.gz" # Standard tarball name
+SDL_DOWNLOAD_URL="https://www.libsdl.org/release/${SDL_TARBALL}" # Use official site download
+SDL_UNPACK_DIR="SDL2-${LATEST_SDL_VERSION}"
+
+download "$SDL_DOWNLOAD_URL" "SDL2.tar.gz" # Keep downloaded name as SDL2.tar.gz for consistency
 checkStatus $? "download failed"
 
 # unpack
 tar -zxf "SDL2.tar.gz"
 checkStatus $? "unpack failed"
-cd "SDL2-$VERSION/"
+cd "$SDL_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build

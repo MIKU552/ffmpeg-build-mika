@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libogg")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,14 +32,39 @@ checkStatus $? "create directory failed"
 cd "libogg/"
 checkStatus $? "change directory failed"
 
+# Get latest libogg version from Xiph.org
+echo "Fetching latest libogg version from Xiph.org..."
+LATEST_LIBOGG_VERSION=$(get_latest_html_link_version \
+    "https://downloads.xiph.org/releases/ogg/" \
+    'href="libogg-([0-9\.]+)\.tar\.(gz|xz|bz2)"' \
+    's|.*libogg-([0-9\.]+)\.tar\.(gz|xz|bz2).*|\1|')
+checkStatus $? "Failed to fetch latest libogg version"
+echo "Latest libogg version: $LATEST_LIBOGG_VERSION"
+
+# Determine tarball extension
+LIBOGG_TARBALL_EXT=$(determine_tarball_extension \
+    "https://downloads.xiph.org/releases/ogg/libogg-${LATEST_LIBOGG_VERSION}" \
+    ".tar.gz") # Default to .tar.gz
+checkStatus $? "Failed to determine tarball extension for libogg"
+echo "Using extension: $LIBOGG_TARBALL_EXT"
+
 # download source
-download https://ftp.osuosl.org/pub/xiph/releases/ogg/libogg-$VERSION.tar.gz "libogg.tar.gz"
+LIBOGG_TARBALL="libogg-${LATEST_LIBOGG_VERSION}${LIBOGG_TARBALL_EXT}"
+LIBOGG_UNPACK_DIR="libogg-${LATEST_LIBOGG_VERSION}"
+# Using OSUOSL mirror with the fetched version and determined extension
+download "https://ftp.osuosl.org/pub/xiph/releases/ogg/${LIBOGG_TARBALL}" "$LIBOGG_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -zxf "libogg.tar.gz"
+if [ "$LIBOGG_TARBALL_EXT" = ".tar.xz" ]; then
+    tar -xf "$LIBOGG_TARBALL"
+elif [ "$LIBOGG_TARBALL_EXT" = ".tar.bz2" ]; then
+    tar -xjf "$LIBOGG_TARBALL"
+else # .tar.gz
+    tar -zxf "$LIBOGG_TARBALL"
+fi
 checkStatus $? "unpack failed"
-cd "libogg-$VERSION/"
+cd "$LIBOGG_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build

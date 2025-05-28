@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/vpx")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -38,13 +33,9 @@ cd "vpx/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://gh-proxy.com/https://github.com/webmproject/libvpx/archive/$VERSION.tar.gz "vpx.tar.gz"
-checkStatus $? "download failed"
-
-# unpack
-tar -zxf "vpx.tar.gz"
-checkStatus $? "unpack failed"
-cd "libvpx-$VERSION/"
+git clone https://chromium.googlesource.com/webm/libvpx.git libvpx-src
+checkStatus $? "git clone failed"
+cd "libvpx-src/"
 checkStatus $? "change directory failed"
 
 # prepare build

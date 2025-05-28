@@ -29,11 +29,6 @@ CPUS=$4
 # --- OS Detection ---
 OS_NAME=$(uname)
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/nasm")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -41,17 +36,30 @@ mkdir -p "nasm" # Use -p
 cd "nasm/"
 checkStatus $? "change directory failed"
 
+# Get latest nasm version from nasm.us
+echo "Fetching latest nasm version from nasm.us..."
+# This command looks for directory links like <a href="2.16.01/">, extracts "2.16.01", sorts, and takes the latest.
+LATEST_NASM_VERSION=$(curl -sL https://www.nasm.us/pub/nasm/releasebuilds/ | \
+    grep -oP 'href="([0-9\.]+)/"' | \
+    sed -E 's|href="([0-9\.]+)/"|\1|' | \
+    grep -E '^[0-9]+\.[0-9]+(\.[0-9]+)*$' | \
+    sort -V | tail -n 1)
+checkStatus $? "Failed to fetch latest nasm version"
+echo "Latest nasm version: $LATEST_NASM_VERSION"
+
 # download source
 NASM_SUBDIR="nasm-src" # Use a subdirectory
 mkdir -p "$NASM_SUBDIR"
 checkStatus $? "create directory failed"
-download http://www.nasm.us/pub/nasm/releasebuilds/$VERSION/nasm-$VERSION.tar.gz nasm.tar.gz
+NASM_PRIMARY_URL="http://www.nasm.us/pub/nasm/releasebuilds/$LATEST_NASM_VERSION/nasm-$LATEST_NASM_VERSION.tar.gz"
+NASM_GITHUB_TAG="nasm-$LATEST_NASM_VERSION" # Construct GitHub tag based on fetched version
+NASM_GITHUB_URL="https://github.com/netwide-assembler/nasm/archive/refs/tags/$NASM_GITHUB_TAG.tar.gz"
+
+download $NASM_PRIMARY_URL nasm.tar.gz
 if [ $? -ne 0 ]; then
-    echo "download failed; start download from github server"
-    # Use gh-proxy if needed
-    # download https://gh-proxy.com/https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-$VERSION.tar.gz nasm.tar.gz
-    download https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-$VERSION.tar.gz nasm.tar.gz
-    checkStatus $? "download failed"
+    echo "Download from nasm.us failed; trying GitHub mirror"
+    download $NASM_GITHUB_URL nasm.tar.gz
+    checkStatus $? "Download from GitHub mirror failed"
 fi
 
 # unpack

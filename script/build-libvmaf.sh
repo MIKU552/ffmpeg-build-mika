@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libvmaf")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,8 +32,25 @@ checkStatus $? "create directory failed"
 cd "libvmaf/"
 checkStatus $? "change directory failed"
 
+# Get latest libvmaf version from GitHub API
+echo "Fetching latest libvmaf version from GitHub..."
+LATEST_LIBVMAF_TAG=$(get_latest_github_release_tag "Netflix/vmaf")
+checkStatus $? "Failed to fetch latest libvmaf tag from GitHub"
+echo "Latest libvmaf tag: $LATEST_LIBVMAF_TAG" # Should be like vX.Y.Z
+
+# Version for directory name usually doesn't have 'v'
+LATEST_LIBVMAF_VERSION_NO_V=$(echo "$LATEST_LIBVMAF_TAG" | sed 's/^v//') # Remove 'v' prefix
+checkStatus $? "Failed to parse libvmaf version from tag (sed)"
+echo "Latest libvmaf version (no 'v'): $LATEST_LIBVMAF_VERSION_NO_V"
+
 # download source
-download https://github.com/Netflix/vmaf/archive/refs/tags/v$VERSION.tar.gz "libvmaf.tar.gz"
+# GitHub archives are typically refs/tags/TAG_NAME.tar.gz
+LIBVMAF_DOWNLOAD_URL="https://github.com/Netflix/vmaf/archive/refs/tags/${LATEST_LIBVMAF_TAG}.tar.gz"
+# The directory created by tar -zxf is typically <repo_name>-<tag_name_without_v_prefix>
+# For vmaf, if tag is v2.3.0, directory is vmaf-2.3.0. If tag is just 2.3.0, dir is vmaf-2.3.0
+LIBVMAF_UNPACK_DIR_ROOT="vmaf-${LATEST_LIBVMAF_VERSION_NO_V}"
+
+download "$LIBVMAF_DOWNLOAD_URL" "libvmaf.tar.gz" # Use a fixed downloaded tarball name
 checkStatus $? "download failed"
 
 # unpack
@@ -49,7 +61,7 @@ checkStatus $? "unpack failed"
 prepareMeson
 
 # prepare build
-cd "vmaf-$VERSION/libvmaf/"
+cd "$LIBVMAF_UNPACK_DIR_ROOT/libvmaf/" # Path includes the libvmaf subdirectory
 checkStatus $? "change directory failed"
 meson build --prefix "$TOOL_DIR" --libdir=lib --buildtype release --default-library static
 checkStatus $? "configuration failed"

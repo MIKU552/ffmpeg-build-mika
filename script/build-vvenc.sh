@@ -30,11 +30,6 @@ CPUS=$4
 # --- OS Detection ---
 OS_NAME=$(uname)
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/vvenc")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -43,21 +38,13 @@ cd "vvenc/"
 checkStatus $? "change directory failed"
 
 # download source
-VVENC_TARBALL="vvenc-$VERSION.tar.gz"
-VVENC_UNPACK_DIR="vvenc-$VERSION"
-download https://github.com/fraunhoferhhi/vvenc/archive/$VERSION.tar.gz "$VVENC_TARBALL"
-checkStatus $? "download failed"
-
-# unpack
-tar -zxf "$VVENC_TARBALL"
-checkStatus $? "unpack failed"
-rm "$VVENC_TARBALL" # Clean up
+git clone https://github.com/fraunhoferhhi/vvenc.git vvenc-src
+checkStatus $? "git clone failed"
+cd "vvenc-src/"
+checkStatus $? "change directory failed"
 
 # --- PGO Step 1: Build Instrumented Binary ---
 echoSection "Build vvenc PGO Generator"
-cd "$VVENC_UNPACK_DIR/"
-checkStatus $? "change directory failed"
-
 mkdir -p "pgogen"
 checkStatus $? "create directory failed"
 cd "pgogen/"

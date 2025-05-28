@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libiconv")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,14 +32,25 @@ checkStatus $? "create directory failed"
 cd "libiconv/"
 checkStatus $? "change directory failed"
 
+# Get latest libiconv version from GNU FTP
+echo "Fetching latest libiconv version from GNU FTP..."
+LATEST_LIBICONV_VERSION=$(get_latest_html_link_version \
+    "https://ftp.gnu.org/pub/gnu/libiconv/" \
+    'href="libiconv-([0-9\.]+)\.tar\.gz"' \
+    's|.*libiconv-([0-9\.]+)\.tar\.gz.*|\1|')
+checkStatus $? "Failed to fetch latest libiconv version"
+echo "Latest libiconv version: $LATEST_LIBICONV_VERSION"
+
 # download source
-download https://ftp.gnu.org/pub/gnu/libiconv/libiconv-$VERSION.tar.gz "libiconv.tar.gz"
+LIBICONV_TARBALL="libiconv-${LATEST_LIBICONV_VERSION}.tar.gz" # Assumes .tar.gz, common for GNU
+LIBICONV_UNPACK_DIR="libiconv-${LATEST_LIBICONV_VERSION}"
+download "https://ftp.gnu.org/pub/gnu/libiconv/${LIBICONV_TARBALL}" "$LIBICONV_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -zxf "libiconv.tar.gz"
+tar -zxf "$LIBICONV_TARBALL"
 checkStatus $? "unpack failed"
-cd "libiconv-$VERSION/"
+cd "$LIBICONV_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build

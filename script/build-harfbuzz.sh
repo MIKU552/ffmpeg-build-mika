@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/harfbuzz")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,19 +32,27 @@ checkStatus $? "create directory failed"
 cd "harfbuzz/"
 checkStatus $? "change directory failed"
 
+# Get latest harfbuzz version from GitHub API
+echo "Fetching latest harfbuzz version from GitHub..."
+LATEST_HARFBUZZ_VERSION=$(curl -s https://api.github.com/repos/harfbuzz/harfbuzz/releases/latest | jq -r '.tag_name')
+checkStatus $? "Failed to fetch latest harfbuzz version"
+echo "Latest harfbuzz version: $LATEST_HARFBUZZ_VERSION"
+
 # download source
-download https://gh-proxy.com/https://github.com/harfbuzz/harfbuzz/releases/download/$VERSION/harfbuzz-$VERSION.tar.xz "harfbuzz.tar.xz"
+HARFBUZZ_TARBALL="harfbuzz-$LATEST_HARFBUZZ_VERSION.tar.xz"
+HARFBUZZ_UNPACK_DIR="harfbuzz-$LATEST_HARFBUZZ_VERSION"
+download https://github.com/harfbuzz/harfbuzz/releases/download/$LATEST_HARFBUZZ_VERSION/$HARFBUZZ_TARBALL "$HARFBUZZ_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -xf "harfbuzz.tar.xz"
+tar -xf "$HARFBUZZ_TARBALL"
 checkStatus $? "unpack failed"
 
 # prepare python3 virtual environment / meson
 prepareMeson
 
 # prepare build
-cd "harfbuzz-$VERSION/"
+cd "$HARFBUZZ_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 meson build --prefix "$TOOL_DIR" --libdir=lib --default-library=static
 checkStatus $? "configuration failed"

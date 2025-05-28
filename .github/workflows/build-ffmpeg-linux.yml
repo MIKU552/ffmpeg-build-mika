@@ -1,61 +1,142 @@
-name: FFmpeg Build CI
+name: Weekly FFmpeg Build and Release
 
-on: [push, pull_request] # Adjust triggers as needed
+on:
+  schedule:
+    - cron: '0 20 * * 6' # 8 pm Saturday UTC (4 am Sunday Beijing Time, UTC+8)
+  workflow_dispatch: # Allows manual triggering
+
+permissions:
+  contents: write # Required to create releases and upload assets
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-24.04 # Or your desired Linux runner
+  build:
+    name: Build FFmpeg on ${{ matrix.os_name }}
+    runs-on: ${{ matrix.os_runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os_runner: ubuntu-24.04
+            os_name: linux
+          - os_runner: macos-13 # Using macos-13 for stability, can be macos-latest
+            os_name: macos
 
     steps:
-      # 1. Checkout the repository including LFS files
       - name: Checkout repository
-        uses: actions/checkout@v4 # Use a current version like v4
+        uses: actions/checkout@v4
         with:
-          lfs: true # <-- This line enables Git LFS download
+          lfs: true
 
-      # 2. Install system dependencies (Make sure git-lfs is included or pre-installed)
-      #    GitHub hosted runners usually have git-lfs pre-installed.
-      - name: Install System Dependencies
+      - name: Install System Dependencies (Linux)
+        if: matrix.os_name == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             build-essential gcc g++ binutils make cmake ninja-build pkg-config \
-            curl tar bzip2 xz-utils python3 python3-pip python3-venv python3-virtualenv nasm git-lfs \
-            docbook-utils xsltproc asciidoc xmlto gperf autopoint automake libtool autoconf \
-            # Add any other necessary packages like autoconf, libtool if needed by specific autogen.sh scripts
-          # Verify LFS install if needed: git lfs version
+            curl tar bzip2 xz-utils python3 python3-pip python3-venv nasm git-lfs \
+            docbook-utils xsltproc asciidoc xmlto gperf autopoint automake libtool autoconf jq
+          git lfs version
 
-      # 3. Install Rust/Cargo if needed by dependencies (like rav1e)
-      - name: Install Rust and cargo-c
+      - name: Install System Dependencies (macOS)
+        if: matrix.os_name == 'macos'
+        run: |
+          brew install cmake ninja pkg-config nasm rust cargo-c jq coreutils automake libtool gnu-sed gettext
+          # gettext for envsubst if needed by any script, and general compatibility
+          # coreutils for gsha256sum if sha256sum is not standard, or use shasum
+          # gnu-sed for gsed if scripts rely on GNU sed features
+
+      - name: Install Rust and cargo-c (Linux - macOS installs via brew)
+        if: matrix.os_name == 'linux'
         uses: dtolnay/rust-toolchain@stable
-        # Add components if needed, e.g., with: components: rustfmt, clippy
-      - run: cargo install cargo-c --locked # Install cargo-c for rav1e
+      - name: Install cargo-c (Linux - macOS installs via brew)
+        if: matrix.os_name == 'linux'
+        run: cargo install cargo-c --locked
 
-      # (Optional) Explicitly pull LFS files if needed, though lfs:true usually suffices
-      # - name: Pull Git LFS files
-      #   run: git lfs pull
-
-      # 4. Run your build script
       - name: Run Build Script
-        id: build_script # Assign an ID to the step
-        run: ./build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES # Skip tests in CI maybe?
+        id: build_script
+        run: |
+          chmod +x build.sh
+          # Assuming build.sh is the correct script name.
+          # SKIP_BUNDLE=NO ensures the ffmpeg-build.tar.gz is created.
+          # SKIP_TEST=YES is advisable for CI/release builds to save time.
+          ./build.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
 
-      # 5. Upload Build Artifacts (Only on Success)
-      - name: Upload Build Artifacts
-        if: success() # Run only if previous steps succeeded
+      - name: Prepare Release Assets
+        id: prepare_assets
+        run: |
+          TIMESTAMP=$(date +%Y%m%d)
+          ORIGINAL_BUNDLE="ffmpeg-build.tar.gz" # Expected output from build.sh
+          ASSET_BASENAME="ffmpeg-${{ matrix.os_name }}-${TIMESTAMP}"
+          RENAMED_BUNDLE_NAME="${ASSET_BASENAME}.tar.gz"
+          CHECKSUM_FILE_NAME="${ASSET_BASENAME}.sha256"
+
+          if [ ! -f "$ORIGINAL_BUNDLE" ]; then
+            echo "ERROR: Build bundle $ORIGINAL_BUNDLE not found!"
+            exit 1
+          fi
+
+          echo "Renaming $ORIGINAL_BUNDLE to $RENAMED_BUNDLE_NAME"
+          mv "$ORIGINAL_BUNDLE" "$RENAMED_BUNDLE_NAME"
+
+          echo "Creating checksum for $RENAMED_BUNDLE_NAME"
+          if [ "${{ matrix.os_name }}" == "macos" ]; then
+            shasum -a 256 "$RENAMED_BUNDLE_NAME" > "$CHECKSUM_FILE_NAME"
+          else
+            sha256sum "$RENAMED_BUNDLE_NAME" > "$CHECKSUM_FILE_NAME"
+          fi
+          
+          # Output variables for use in the Upload Build Artifact step
+          echo "RENAMED_BUNDLE_PATH=${RENAMED_BUNDLE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "CHECKSUM_FILE_PATH=${CHECKSUM_FILE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-linux-gcc-build
+          name: build-assets-${{ matrix.os_name }} # Unique artifact name per OS
           path: |
-            ffmpeg-build.tar.gz
-            log/ # Upload logs even on success for inspection
-          if-no-files-found: error # Optional: fail if the bundle is missing
+            ${{ steps.prepare_assets.outputs.RENAMED_BUNDLE_PATH }}
+            ${{ steps.prepare_assets.outputs.CHECKSUM_FILE_PATH }}
+          if-no-files-found: error
 
-      # 6. Upload Logs (Only on Failure) - ADD THIS STEP
-      - name: Upload Logs on Failure
-        if: failure() # Run only if any previous step failed
-        uses: actions/upload-artifact@v4
+  create_release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: success() # Only run if all build jobs succeeded
+
+    steps:
+      - name: Get current date for Release Name and Tag
+        id: get_date
+        run: |
+          echo "RELEASE_DATE=$(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          echo "TAG_DATE=$(date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+      
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: ffmpeg-build-logs-on-failure-(ubuntu-24.04-gcc) # Descriptive name
-          path: log/
-          if-no-files-found: ignore # Don't error if log dir is empty or missing
+          path: artifacts # Download all artifacts into an 'artifacts' directory
+                          # This will create artifacts/build-assets-linux and artifacts/build-assets-macos
+
+      - name: List downloaded files (for debugging)
+        run: |
+          echo "Listing files in artifacts directory:"
+          ls -R artifacts
+
+      - name: Create GitHub Release
+        id: create_gh_release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: FFmpeg Build - ${{ steps.get_date.outputs.RELEASE_DATE }}
+          tag_name: weekly-build-${{ steps.get_date.outputs.TAG_DATE }}
+          body: |
+            Automated weekly FFmpeg build.
+            Assets include builds for Linux and macOS, along with their SHA256 checksums.
+          draft: false
+          prerelease: false
+          # Glob patterns to find all files within the downloaded artifact subdirectories
+          files: |
+            artifacts/build-assets-linux/*
+            artifacts/build-assets-macos/*
+          fail_on_unmatched_files: true

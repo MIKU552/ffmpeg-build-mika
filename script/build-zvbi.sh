@@ -27,11 +27,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/zvbi")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -40,18 +35,32 @@ checkStatus $? "create directory failed"
 cd "zvbi/"
 checkStatus $? "change directory failed"
 
+# Get latest zvbi version from GitHub API (libzvbi/zvbi)
+echo "Fetching latest zvbi version from GitHub (libzvbi/zvbi)..."
+LATEST_ZVBI_TAG=$(get_latest_github_release_tag "libzvbi/zvbi")
+checkStatus $? "Failed to fetch latest zvbi tag from GitHub"
+echo "Latest zvbi tag: $LATEST_ZVBI_TAG" # Should be like vX.Y.Z
+
+LATEST_ZVBI_VERSION=$(echo "$LATEST_ZVBI_TAG" | sed 's/^v//') # Remove 'v' prefix
+checkStatus $? "Failed to parse zvbi version from tag (sed)"
+echo "Latest zvbi version: $LATEST_ZVBI_VERSION"
+
 # download source
-download https://gh-proxy.com/https://github.com/zapping-vbi/zvbi/archive/refs/tags/v$VERSION.tar.gz "zvbi.tar.gz"
+ZVBI_DOWNLOAD_URL="https://github.com/libzvbi/zvbi/archive/refs/tags/${LATEST_ZVBI_TAG}.tar.gz"
+# The directory created by tar -zxf for GitHub archives is typically <repo_name>-<tag_name_without_v_prefix>
+ZVBI_UNPACK_DIR="zvbi-${LATEST_ZVBI_VERSION}"
+
+download "$ZVBI_DOWNLOAD_URL" "zvbi.tar.gz" # Use a fixed downloaded tarball name
 checkStatus $? "download failed"
 
 # unpack
 tar -zxf "zvbi.tar.gz"
 checkStatus $? "unpack failed"
-cd "zvbi-$VERSION/"
+cd "$ZVBI_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build
-echoSection "configure zvbi $VERSION"
+echoSection "configure zvbi $LATEST_ZVBI_VERSION"
 chmod +x autogen.sh
 ./autogen.sh && ./configure --prefix="$TOOL_DIR" --enable-shared=no
 checkStatus $? "configuration failed"

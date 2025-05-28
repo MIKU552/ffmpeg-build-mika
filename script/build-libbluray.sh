@@ -24,11 +24,6 @@ CPUS=$4
 # load functions
 . $SCRIPT_DIR/functions.sh
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libbluray")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
@@ -37,16 +32,28 @@ checkStatus $? "create directory failed"
 cd "libbluray/"
 checkStatus $? "change directory failed"
 
+# Get latest libbluray version from VideoLAN FTP
+echo "Fetching latest libbluray version from VideoLAN FTP..."
+LATEST_LIBBLURAY_VERSION=$(get_latest_html_link_version \
+    "https://download.videolan.org/pub/videolan/libbluray/" \
+    'href="([0-9\.]+)/"' \
+    's|href="([0-9\.]+)/"|\1|')
+checkStatus $? "Failed to fetch latest libbluray version"
+echo "Latest libbluray version: $LATEST_LIBBLURAY_VERSION"
+
 # download source
-download https://download.videolan.org/pub/videolan/libbluray/$VERSION/libbluray-$VERSION.tar.bz2 "libbluray.tar.bz2"
+LIBBLURAY_TARBALL="libbluray-${LATEST_LIBBLURAY_VERSION}.tar.bz2" # Assumes .tar.bz2 based on previous script
+LIBBLURAY_UNPACK_DIR="libbluray-${LATEST_LIBBLURAY_VERSION}"
+download "https://download.videolan.org/pub/videolan/libbluray/${LATEST_LIBBLURAY_VERSION}/${LIBBLURAY_TARBALL}" "$LIBBLURAY_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-bunzip2 "libbluray.tar.bz2"
+bunzip2 "$LIBBLURAY_TARBALL"
 checkStatus $? "unpack failed (bunzip2)"
-tar -xf "libbluray.tar"
+# The tarball name after bunzip2 will be the tarball name without .bz2
+tar -xf $(basename "$LIBBLURAY_TARBALL" .bz2)
 checkStatus $? "unpack failed (tar)"
-cd "libbluray-$VERSION/"
+cd "$LIBBLURAY_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 # prepare build
