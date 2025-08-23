@@ -45,7 +45,7 @@ checkStatus $? "change directory failed"
 # download source
 VVDEC_TARBALL="vvdec-$VERSION.tar.gz"
 VVDEC_UNPACK_DIR="vvdec-$VERSION"
-download https://github.com/fraunhoferhhi/vvdec/archive/$VERSION.tar.gz "$VVDEC_TARBALL"
+download https://gh-proxy.com/https://github.com/fraunhoferhhi/vvdec/archive/$VERSION.tar.gz "$VVDEC_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
@@ -90,7 +90,7 @@ checkStatus $? "pgogen installation failed"
 
 # --- PGO Step 2: Training Run ---
 echoSection "Run vvdec PGO Training"
-VVENC_SOURCE_DIR="$SOURCE_DIR/vvenc" # Assumes vvenc was built before vvdec
+VVENC_SOURCE_DIR="$SOURCE_DIR/vvenc/vvenc-dfebb7df74f5d7b14ab69bf910e5b388bc734883" # Assumes vvenc was built before vvdec
 ENABLE_VVDEC_PGO="YES" # Assume YES initially
 
 # Check if training input files exist

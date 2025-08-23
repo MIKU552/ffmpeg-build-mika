@@ -444,14 +444,14 @@ run_build() {
 # Usage: run_build <libname> <script_name> <target_check_filename> <source_subdir> <ffmpeg_flag> <is_gpl> <is_nonfree> [extra_args...]
 run_build "nasm" "build-nasm" "nasm" "nasm" "" "NO" "NO"
 run_build "pkg-config" "build-pkg-config" "pkg-config" "pkg-config" "" "NO" "NO" "$TOOL_DIR"
-run_build "zlib" "build-zlib" "libz.a" "zlib" "" "NO" "NO"
-run_build "openssl" "build-openssl" "libssl.a" "openssl" "" "NO" "NO" # FFmpeg links ssl & crypto
+run_build "zlib" "build-zlib" "libz.a" "zlib" "--enable-zlib" "NO" "NO"
+run_build "openssl" "build-openssl" "libssl.a" "openssl" "--enable-openssl" "NO" "NO" # FFmpeg links ssl & crypto
 run_build "cmake" "build-cmake" "cmake" "cmake" "" "NO" "NO"
 run_build "ninja" "build-ninja" "ninja" "ninja" "" "NO" "NO"
 run_build "libxml2" "build-libxml2" "libxml2.a" "libxml2" "--enable-libxml2" "NO" "NO"
 
 # --- Text / Subtitle Chain ---
-run_build "fribidi" "build-fribidi" "libfribidi.a" "fribidi" "" "NO" "NO"
+run_build "fribidi" "build-fribidi" "libfribidi.a" "fribidi" "--enable-libfribidi" "NO" "NO"
 run_build "freetype" "build-freetype" "libfreetype.a" "freetype" "--enable-libfreetype" "NO" "NO"
 run_build "fontconfig" "build-fontconfig" "libfontconfig.a" "fontconfig" "--enable-fontconfig" "NO" "NO"
 run_build "harfbuzz" "build-harfbuzz" "libharfbuzz.a" "harfbuzz" "--enable-libharfbuzz" "NO" "NO"
@@ -470,6 +470,7 @@ run_build "libklvanc" "build-libklvanc" "libklvanc.a" "libklvanc" "--enable-libk
 run_build "libogg" "build-libogg" "libogg.a" "libogg" "" "NO" "NO" # Dependency for vorbis/theora
 run_build "zimg" "build-zimg" "libzimg.a" "zimg" "--enable-libzimg" "NO" "NO"
 run_build "zvbi" "build-zvbi" "libzvbi.a" "zvbi" "--enable-libzvbi" "NO" "NO"
+run_build "whisper" "build-whisper" "libwhisper.a" "whispercpp" "--enable-whisper" "NO" "NO"
 
 # --- Video Codecs ---
 run_build "aom" "build-aom" "libaom.a" "aom" "--enable-libaom" "NO" "NO"
@@ -486,6 +487,8 @@ run_build "vvenc" "build-vvenc" "libvvenc.a" "vvenc" "--enable-libvvenc" "NO" "N
 run_build "vvdec" "build-vvdec" "libvvdec.a" "vvdec" "--enable-libvvdec" "NO" "NO"
 
 # --- Audio Codecs ---
+run_build "soxr" "build-soxr" "libsoxr.a" "soxr" "--enable-libsoxr" "NO" "NO"
+
 run_build "lame" "build-lame" "libmp3lame.a" "lame" "--enable-libmp3lame" "NO" "NO"
 run_build "opus" "build-opus" "libopus.a" "opus" "--enable-libopus" "NO" "NO"
 run_build "libvorbis" "build-libvorbis" "libvorbis.a" "libvorbis" "--enable-libvorbis" "NO" "NO"

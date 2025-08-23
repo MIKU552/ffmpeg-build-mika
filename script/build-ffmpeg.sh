@@ -102,7 +102,7 @@ CONFIGURE_ARGS="$CONFIGURE_ARGS $FFMPEG_LIB_FLAGS"
 # --- Apply vvdec patch and fixes ---
 if [ "$SKIP_VVDEC_PATCH" = "NO" ]; then
     PATCH_FILENAME="libvvdec.patch"
-    PATCH_URL="https://raw.githubusercontent.com/wiki/fraunhoferhhi/vvdec/data/patch/v6-0001-avcodec-add-external-dec-libvvdec-for-H266-VVC.patch"
+    PATCH_URL="https://ghfast.top/https://raw.githubusercontent.com/wiki/fraunhoferhhi/vvdec/data/patch/v6-0001-avcodec-add-external-dec-libvvdec-for-H266-VVC.patch"
     if [ ! -f $PATCH_FILENAME ]; then
         echo "Downloading vvdec patch from $PATCH_URL..."
         # Use gh-proxy if needed in specific environments
