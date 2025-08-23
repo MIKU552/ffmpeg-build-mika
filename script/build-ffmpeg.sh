@@ -34,49 +34,51 @@ OS_NAME=${10} # Passed from main build script
 . "$SCRIPT_DIR/functions.sh"
 
 # --- Version ---
-FFMPEG_TARBALL_URL=""
+# 根据是否使用 snapshot 来统一设置版本、包名和下载地址
 if [ "$FFMPEG_SNAPSHOT" = "YES" ]; then
     VERSION="snapshot"
-    # Use snapshot URL - ensure correct format
-    FFMPEG_TARBALL_URL="https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2"
+    FFMPEG_TARBALL="ffmpeg-snapshot.tar.bz2"
 else
-    # load version from file
-    if [ ! -f "$SCRIPT_DIR/../version/ffmpeg" ]; then
-        echo "ERROR: Version file not found at $SCRIPT_DIR/../version/ffmpeg"
+    # 从文件加载版本号
+    VERSION_FILE="$SCRIPT_DIR/../version/ffmpeg"
+    if [ ! -f "$VERSION_FILE" ]; then
+        echo "ERROR: Version file not found at $VERSION_FILE"
         exit 1
     fi
-    VERSION=$(cat "$SCRIPT_DIR/../version/ffmpeg")
+    VERSION=$(cat "$VERSION_FILE")
     checkStatus $? "load version failed"
-    FFMPEG_TARBALL_URL="https://ffmpeg.org/releases/ffmpeg-$VERSION.tar.bz2"
+    
+    FFMPEG_TARBALL="ffmpeg-$VERSION.tar.xz"
 fi
+
+FFMPEG_TARBALL_URL="https://ffmpeg.org/releases/$FFMPEG_TARBALL"
 echo "FFmpeg version: $VERSION"
 
 # --- Start in working directory ---
 cd "$SOURCE_DIR"
 checkStatus $? "change directory to SOURCE_DIR failed"
-# Ensure ffmpeg source dir exists before cd'ing (might be cleaned by build.sh)
+# 确保 ffmpeg source 目录存在
 mkdir -p "ffmpeg"
 cd "ffmpeg/"
 checkStatus $? "change directory to source/ffmpeg failed"
 
 # --- Download and Unpack FFmpeg Source ---
-FFMPEG_SOURCE_SUBDIR="ffmpeg-src" # Use a dedicated subdirectory
+FFMPEG_SOURCE_SUBDIR="ffmpeg-src" # 使用一个专门的子目录
 if [ ! -d "$FFMPEG_SOURCE_SUBDIR" ] || [ -z "$(ls -A "$FFMPEG_SOURCE_SUBDIR")" ]; then
     echo "Downloading FFmpeg source from $FFMPEG_TARBALL_URL..."
-    FFMPEG_TARBALL="ffmpeg-$VERSION.tar.bz2"
-    if [ "$VERSION" = "snapshot" ]; then
-        FFMPEG_TARBALL="ffmpeg-snapshot.tar.bz2"
-    fi
+
+    # 直接使用已经正确设置的变量 FFMPEG_TARBALL 和 FFMPEG_TARBALL_URL
     download "$FFMPEG_TARBALL_URL" "$FFMPEG_TARBALL"
     checkStatus $? "ffmpeg download failed"
 
-    # unpack ffmpeg
+    # 解压 ffmpeg
     mkdir -p "$FFMPEG_SOURCE_SUBDIR"
     checkStatus $? "create directory $FFMPEG_SOURCE_SUBDIR failed"
     echo "Unpacking $FFMPEG_TARBALL..."
-    tar -xjf "$FFMPEG_TARBALL" -C "$FFMPEG_SOURCE_SUBDIR" --strip-components=1
-    checkStatus $? "unpack failed (tar -xjf)"
-    # Clean up tarball
+    tar -xvf "$FFMPEG_TARBALL" -C "$FFMPEG_SOURCE_SUBDIR" --strip-components=1
+    checkStatus $? "unpack failed (tar -xvf)"
+    
+    # 清理压缩包
     rm "$FFMPEG_TARBALL"
 else
     echo "Using existing FFmpeg source directory: $FFMPEG_SOURCE_SUBDIR"

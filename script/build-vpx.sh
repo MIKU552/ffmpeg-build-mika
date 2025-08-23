@@ -48,7 +48,7 @@ cd "libvpx-$VERSION/"
 checkStatus $? "change directory failed"
 
 # prepare build
-./configure --prefix="$TOOL_DIR" --disable-unit-tests
+./configure --prefix="$TOOL_DIR" --disable-unit-tests  --as=nasm
 checkStatus $? "configuration failed"
 
 # build

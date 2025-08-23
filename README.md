@@ -17,7 +17,7 @@ cargo install cargo-c --locked
 Fedora:
 ```
 dnf group install -y development-tools c-development
-dnf install -y cmake nasm ninja-build pkgconf python3 python3-pip python3-devel python3-virtualenv curl wget zip gperf rust cargo xz-devel numactl-devel openssl-devel perl-core perl-FindBin gettext-devel
+dnf install -y cmake nasm ninja-build pkgconf python3 python3-pip python3-devel python3-virtualenv curl wget zip gperf rust cargo xz-devel numactl-devel openssl-devel perl-core perl-FindBin gettext-devel git-lfs
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 . "$HOME/.cargo/env"
 cargo install cargo-c --locked

@@ -66,7 +66,7 @@ SKIP_LIBOGG="NO"
 # Build options
 DECKLINK_SDK=""
 ENABLE_FFMPEG_PGO="NO" # Enable PGO by default (adjust as needed)
-FFMPEG_SNAPSHOT="YES"
+FFMPEG_SNAPSHOT="NO"
 CPU_LIMIT=""
 FORCE_REBUILD="NO"
 
