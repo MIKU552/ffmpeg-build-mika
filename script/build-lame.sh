@@ -38,7 +38,7 @@ cd "lame/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://netcologne.dl.sourceforge.net/project/lame/lame/$VERSION/lame-$VERSION.tar.gz "lame.tar.gz"
+download https://downloads.sourceforge.net/project/lame/lame/$VERSION/lame-$VERSION.tar.gz "lame.tar.gz"
 checkStatus $? "download failed"
 
 # unpack
