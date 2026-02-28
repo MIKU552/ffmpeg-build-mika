@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright 2022 Martin Riedl
 # Copyright 2024 Hayden Zheng

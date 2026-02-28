@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright 2021 Martin Riedl
 # Merged for Linux & macOS compatibility
