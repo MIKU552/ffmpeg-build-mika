@@ -5,7 +5,7 @@ on:
     branches: [ "MIX" ]
   pull_request:
     branches: [ "MIX" ]
-  workflow_dispatch: # 允许手动在 Actions 页面触发构建
+  workflow_dispatch: 
 
 jobs:
   build-linux:
@@ -18,7 +18,7 @@ jobs:
         with:
           lfs: true
 
-      # 2. 安装系统依赖 (补全了 README 中要求的依赖，并加上了 ccache)
+      # 2. 安装系统依赖
       - name: Install System Dependencies
         run: |
           sudo apt-get update
@@ -33,7 +33,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # 4. 缓存 Cargo 注册表和构建文件 (加快 cargo-c 的安装)
+      # 4. 缓存 Cargo
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -46,50 +46,48 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-c-
 
-      # 5. 安装 cargo-c (用于 rav1e 依赖)
+      # 5. 安装 cargo-c
       - name: Install cargo-c
         run: cargo install cargo-c --locked
 
-      # 6. 配置 ccache 缓存 (核心提速魔法)
-      - name: Cache ccache
-        uses: actions/cache@v4
+      # 6. 【修改点】恢复 ccache 缓存 (只负责拉取)
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/ccache
-          # 使用 github.sha 保证每次 Push 都会把最新的缓存保存下来，下次恢复时用 restore-keys 模糊匹配最新的
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
+          # 加上 run_attempt 保证 key 绝对唯一，避免已存在冲突
+          key: ${{ runner.os }}-ccache-${{ github.sha }}-${{ github.run_attempt }}
           restore-keys: |
             ${{ runner.os }}-ccache-
 
-      # 7. 运行构建脚本 (在独立 build 目录中运行)
+      # 7. 运行构建脚本
       - name: Run Build Script
         id: build_script
         run: |
-          # 【魔法在这里】将 ccache 的目录加到 PATH 最前面，拦截 GCC
           export PATH="/usr/lib/ccache:$PATH"
-          
-          # 配置 ccache 最大使用 2GB 空间
           ccache -M 2G
-          # 打印构建前的缓存统计信息 (可以在 Action 日志里查看)
+          
           echo "==== ccache stats before build ===="
           ccache -s 
           echo "==================================="
 
-          # 确保所有脚本都有执行权限
           chmod +x build.sh build_fix.sh script/*.sh
-          
-          # 创建并进入构建目录
-          mkdir -p build
-          cd build
-          
-          # 运行构建
+          mkdir -p build && cd build
           ../build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
           
-          # 打印构建后的缓存统计信息 (看看命中了多少缓存！)
           echo "==== ccache stats after build ===="
           ccache -s
           echo "=================================="
 
-      # 8. 上传构建成功的产物
+      # 8. 【修改点】保存 ccache 缓存 (只负责保存，且无论成功失败都执行)
+      - name: Save ccache
+        if: always() # 核心：即使上面的 Run Build Script 报错退出了，这一步也会强制执行
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ${{ runner.os }}-ccache-${{ github.sha }}-${{ github.run_attempt }}
+
+      # 9. 上传构建成功的产物
       - name: Upload Build Artifacts
         if: success()
         uses: actions/upload-artifact@v4
@@ -100,7 +98,7 @@ jobs:
             build/log/
           if-no-files-found: error
 
-      # 9. 仅在构建失败时上传日志
+      # 10. 仅在构建失败时上传日志
       - name: Upload Logs on Failure
         if: failure()
         uses: actions/upload-artifact@v4

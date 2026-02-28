@@ -96,6 +96,10 @@ EXTRA_VERSION="MiKayule-Group-$(date +%Y%m%d)" # Add date to version
 
 # --- Common Configure Arguments ---
 CONFIGURE_ARGS="--prefix=\"$OUT_DIR\" --pkg-config-flags=--static --disable-static --enable-shared --enable-lto --extra-version=\"$EXTRA_VERSION\" --enable-gray"
+
+# 【新增】显式告诉 FFmpeg 去哪里找头文件和静态库
+CONFIGURE_ARGS="$CONFIGURE_ARGS --extra-cflags=\"-I$TOOL_DIR/include\" --extra-ldflags=\"-L$TOOL_DIR/lib -L$TOOL_DIR/lib64\""
+
 # Add flags passed from main script (includes lib enables, gpl, nonfree, etc.)
 CONFIGURE_ARGS="$CONFIGURE_ARGS $FFMPEG_LIB_FLAGS"
 
