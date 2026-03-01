@@ -18,17 +18,24 @@ jobs:
         with:
           lfs: true
 
-      # 2. 安装系统依赖
+      # 2. 安装系统依赖 (集成 LunarG 官方源以获取最新 Vulkan SDK)
       - name: Install System Dependencies
         run: |
+          # 1. 导入 LunarG 官方签名密钥和软件源 (专供 Ubuntu 24.04 Noble)
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list http://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
+          
+          # 2. 更新软件源
           sudo apt-get update
+          
+          # 3. 安装依赖（使用官方 vulkan-sdk 替代旧的散装包）
           sudo apt-get install -y --no-install-recommends \
             build-essential gcc g++ binutils make cmake ninja-build pkg-config \
             curl wget patch tar gzip bzip2 xz-utils zip python3 python3-pip \
             python3-venv python3-virtualenv nasm git-lfs docbook-utils \
             xsltproc asciidoc xmlto gperf autopoint automake libtool autoconf \
             gettext liblzma-dev libnuma-dev libssl-dev ccache \
-            libva-dev libvulkan-dev vulkan-utility-libraries-dev spirv-tools glslang-dev glslang-tools libshaderc-dev libdrm-dev
+            libva-dev libdrm-dev vulkan-sdk
 
       # 3. 安装 Rust 工具链
       - name: Install Rust
