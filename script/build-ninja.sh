@@ -44,7 +44,7 @@ if [ -d "ninja" ]; then
     echo "skip download"
 else
     # download now
-    download https://gh-proxy.com/https://github.com/ninja-build/ninja/archive/refs/tags/v$VERSION.tar.gz "ninja.tar.gz"
+    download https://github.com/ninja-build/ninja/archive/refs/tags/v$VERSION.tar.gz "ninja.tar.gz"
     checkStatus $? "download failed"
 
     # unpack

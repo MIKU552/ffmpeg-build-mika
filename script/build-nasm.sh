@@ -48,8 +48,6 @@ checkStatus $? "create directory failed"
 download http://www.nasm.us/pub/nasm/releasebuilds/$VERSION/nasm-$VERSION.tar.gz nasm.tar.gz
 if [ $? -ne 0 ]; then
     echo "download failed; start download from github server"
-    # Use gh-proxy if needed
-    # download https://gh-proxy.com/https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-$VERSION.tar.gz nasm.tar.gz
     download https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-$VERSION.tar.gz nasm.tar.gz
     checkStatus $? "download failed"
 fi

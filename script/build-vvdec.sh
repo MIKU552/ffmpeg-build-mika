@@ -45,7 +45,7 @@ checkStatus $? "change directory failed"
 # download source
 VVDEC_TARBALL="vvdec-$VERSION.tar.gz"
 VVDEC_UNPACK_DIR="vvdec-$VERSION"
-download https://gh-proxy.com/https://github.com/fraunhoferhhi/vvdec/archive/$VERSION.tar.gz "$VVDEC_TARBALL"
+download https://github.com/fraunhoferhhi/vvdec/archive/$VERSION.tar.gz "$VVDEC_TARBALL"
 checkStatus $? "download failed"
 
 # unpack

@@ -44,8 +44,6 @@ checkStatus $? "change directory failed"
 # download source
 OPENJPEG_TARBALL="openjpeg-$VERSION.tar.gz"
 OPENJPEG_UNPACK_DIR="openjpeg-$VERSION"
-# Use gh-proxy if needed
-# download https://gh-proxy.com/https://github.com/uclouvain/openjpeg/archive/refs/tags/v$VERSION.tar.gz "$OPENJPEG_TARBALL"
 download https://github.com/uclouvain/openjpeg/archive/refs/tags/v$VERSION.tar.gz "$OPENJPEG_TARBALL"
 checkStatus $? "download failed"
 

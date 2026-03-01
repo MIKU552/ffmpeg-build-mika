@@ -38,7 +38,7 @@ cd "vpx/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://gh-proxy.com/https://github.com/webmproject/libvpx/archive/$VERSION.tar.gz "vpx.tar.gz"
+download https://github.com/webmproject/libvpx/archive/$VERSION.tar.gz "vpx.tar.gz"
 checkStatus $? "download failed"
 
 # unpack

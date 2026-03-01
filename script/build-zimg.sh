@@ -44,8 +44,6 @@ checkStatus $? "change directory failed"
 # download source
 ZIMG_TARBALL="zimg-$VERSION.tar.gz" # Consistent name
 ZIMG_UNPACK_DIR="zimg-release-$VERSION" # Match unpack dir name
-# Use gh-proxy if needed
-# download https://gh-proxy.com/https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz "$ZIMG_TARBALL"
 download https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz "$ZIMG_TARBALL"
 checkStatus $? "download failed"
 
