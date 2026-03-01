@@ -161,10 +161,14 @@ jobs:
           echo "### Compiled Component Versions" >> $NOTES_FILE
           echo "" >> $NOTES_FILE
           
-          # 遍历根目录下的 version/ 文件夹并生成列表
+          # 7. 遍历根目录下的 version/ 文件夹并生成列表
           for f in $(ls version/* | sort); do
               if [ -f "$f" ]; then
                   comp=$(basename "$f")
+                  # 【新增】如果文件名是 ffmpeg，则跳过不写进列表
+                  if [ "$comp" = "ffmpeg" ]; then
+                      continue
+                  fi
                   ver=$(cat "$f")
                   echo "* **$comp**: \`$ver\`" >> $NOTES_FILE
               fi
