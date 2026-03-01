@@ -94,7 +94,7 @@ jobs:
         with:
           name: ffmpeg-linux-gcc-build
           path: |
-            build/ffmpeg-build.tar.gz
+            build/ffmpeg-build*.tar.gz
             build/log/
           if-no-files-found: error
 
