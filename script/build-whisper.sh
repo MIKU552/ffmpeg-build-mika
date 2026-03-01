@@ -54,3 +54,17 @@ checkStatus $? "whisper.cpp make failed"
 
 make install
 checkStatus $? "whisper.cpp make install failed"
+
+# --- Post-installation pkg-config fix (解决 FFmpeg 找不到 whisper 的问题) ---
+echo "Applying post-installation fix to whisper.pc for static linking..."
+WHISPER_PC="$TOOL_DIR/lib/pkgconfig/whisper.pc"
+if [ -f "$WHISPER_PC" ]; then
+    echo "Found pkgconfig file at: $WHISPER_PC"
+    # whisper.cpp 是 C++ 编写且使用了 OpenMP，并被拆分成了多个 ggml 子库。
+    # 这里我们使用跨平台的 run_sed 强行把所有隐藏依赖补齐，以骗过 FFmpeg 的探测。
+    run_sed "s|-lwhisper|-lwhisper -lggml -lggml-cpu -lggml-base -lstdc++ -fopenmp -lm -lpthread|g" "$WHISPER_PC"
+    checkStatus $? "modify pkgconfig file failed"
+    echo "Dependencies successfully added to $WHISPER_PC"
+else
+    echo "Warning: whisper.pc not found!"
+fi
