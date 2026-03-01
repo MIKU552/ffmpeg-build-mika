@@ -523,10 +523,15 @@ fi
 FFMPEG_LIB_FLAGS="--enable-version3 $FFMPEG_LIB_FLAGS" # Enable GPL/LGPL v3 features
 FFMPEG_LIB_FLAGS="--enable-demuxer=dash $FFMPEG_LIB_FLAGS" # Explicitly enable dash
 
-# Add macOS specific flags
+# Add OS specific hardware acceleration flags
 if [ "$OS_NAME" = "Darwin" ]; then
     echo "Adding macOS specific flags: --enable-videotoolbox --enable-audiotoolbox"
     FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-videotoolbox --enable-audiotoolbox"
+elif [ "$OS_NAME" = "Linux" ]; then
+    echo "Adding Linux specific flags: --enable-vaapi --enable-vulkan"
+    # 开启 VAAPI 和 Vulkan 硬件加速
+    # 附带开启 libdrm (常用于Linux硬解的数据流转)
+    FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-vaapi --enable-vulkan --enable-libdrm"
 fi
 
 
