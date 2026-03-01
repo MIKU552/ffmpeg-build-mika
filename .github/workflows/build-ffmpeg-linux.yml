@@ -10,6 +10,8 @@ on:
 jobs:
   build-linux:
     runs-on: ubuntu-24.04
+    env:
+      CARGO_C_VERSION: "0.10.20" # 在这里统一管理 cargo-c 的版本
 
     steps:
       # 1. 签出代码并拉取 LFS 文件
@@ -50,17 +52,21 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-c-${{ hashFiles('**/Cargo.lock') }}
+          # 将版本号加入缓存键名，版本号一变，强制重新缓存
+          key: ${{ runner.os }}-cargo-c-${{ env.CARGO_C_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-c-
+            ${{ runner.os }}-cargo-c-${{ env.CARGO_C_VERSION }}-
 
-      # 5. 安装 cargo-c (利用缓存跳过重复安装)
+      # 5. 安装 cargo-c (精确版本校验)
       - name: Install cargo-c
         run: |
-          if ! command -v cargo-cbuild &> /dev/null; then
-            cargo install cargo-c --locked
+          # 检查是否已安装，以及已安装的版本是否与设定版本完全一致
+          if ! command -v cargo-cbuild &> /dev/null || ! cargo cbuild --version | grep -q "${{ env.CARGO_C_VERSION }}"; then
+            echo "Installing/Updating cargo-c to v${{ env.CARGO_C_VERSION }}..."
+            # 加上 --force 确保即使旧版本存在也能强制覆盖
+            cargo install cargo-c --version ${{ env.CARGO_C_VERSION }} --locked --force
           else
-            echo "cargo-c is already installed from cache, skipping!"
+            echo "cargo-c v${{ env.CARGO_C_VERSION }} is already installed from cache, skipping!"
           fi
 
       # 6. 【修改点】恢复 ccache 缓存 (只负责拉取)
@@ -119,3 +125,47 @@ jobs:
           name: ffmpeg-build-logs-on-failure-(ubuntu-24.04-gcc)
           path: build/log/
           if-no-files-found: ignore
+
+      # 11. 提取 FFmpeg 版本，重命名产物，并生成 Release Notes
+      - name: Prepare Release
+        if: success()
+        run: |
+          # 1. 赋予执行权限
+          chmod +x build/out/bin/ffmpeg
+          
+          # 2. 注入动态库路径 (以防万一你依然在使用 Shared 动态编译模式)
+          export LD_LIBRARY_PATH="$(pwd)/build/out/lib:$(pwd)/build/out/lib64:$LD_LIBRARY_PATH"
+          
+          # 3. 运行 ffmpeg 获取真实的 snapshot 版本号，并剔除冗长的 extra-version
+          # 原始输出类似: N-123074-g4e32fb4c2a-MiKayule-Group-20260301
+          # 使用 sed 's/-MiKayule.*//' 会自动把 "-MiKayule" 及其后面的所有内容全部删掉
+          RAW_VERSION=$(./build/out/bin/ffmpeg -version | head -n1 | awk '{print $3}')
+          FFMPEG_VERSION=$(echo "$RAW_VERSION" | sed 's/-MiKayule.*//')
+          echo "FFMPEG_VERSION=$FFMPEG_VERSION" >> $GITHUB_ENV
+          
+          # 4. 重命名打包文件
+          # 现在的名字将会是干爽的: ffmpeg-N-123074-g4e32fb4c2a-linux-x86_64-gcc.tar.gz
+          NEW_TAR_NAME="ffmpeg-${FFMPEG_VERSION}-linux-x86_64-gcc.tar.gz"
+          mv build/ffmpeg-build*.tar.gz "build/${NEW_TAR_NAME}"
+          echo "TAR_NAME=${NEW_TAR_NAME}" >> $GITHUB_ENV
+          
+          # 5. 设置东八区时间，生成时间戳
+          export TZ='Asia/Shanghai'
+          CURRENT_TIME=$(date +'%Y/%m/%d %H:%M:%S')
+          
+          # 6. 动态写入 Release Notes (Markdown格式)
+          NOTES_FILE="release_notes.md"
+          echo "### ~~最新最热的 FFMPEG~~" > $NOTES_FILE
+          echo "编译于 ${CURRENT_TIME} 。视频编码库均选用最新的 commit ，其余库使用的则是最新的 release 。" >> $NOTES_FILE
+          echo "其中 x265, svt-av1, vvenc, vvdec 编译开启了 LTO 优化和 PGO 优化，ffmpeg开启了 LTO 优化。" >> $NOTES_FILE
+          echo "### Compiled Component Versions" >> $NOTES_FILE
+          echo "" >> $NOTES_FILE
+          
+          # 遍历根目录下的 version/ 文件夹并生成列表
+          for f in $(ls version/* | sort); do
+              if [ -f "$f" ]; then
+                  comp=$(basename "$f")
+                  ver=$(cat "$f")
+                  echo "* **$comp**: \`$ver\`" >> $NOTES_FILE
+              fi
+          done
