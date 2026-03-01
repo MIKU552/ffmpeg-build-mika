@@ -38,14 +38,17 @@ cd "libbluray/"
 checkStatus $? "change directory failed"
 
 # download source
-download https://download.videolan.org/pub/videolan/libbluray/$VERSION/libbluray-$VERSION.tar.bz2 "libbluray.tar.bz2"
+download https://download.videolan.org/pub/videolan/libbluray/$VERSION/libbluray-$VERSION.tar.xz "libbluray.tar.xz"
 checkStatus $? "download failed"
 
 # unpack
-bunzip2 "libbluray.tar.bz2"
-checkStatus $? "unpack failed (bunzip2)"
-tar -xf "libbluray.tar"
-checkStatus $? "unpack failed (tar)"
+# bunzip2 "libbluray.tar.bz2"
+# checkStatus $? "unpack failed (bunzip2)"
+# tar -xf "libbluray.tar"
+# checkStatus $? "unpack failed (tar)"
+# unpack
+tar -xvf "libbluray.tar.xz"
+checkStatus $? "unpack failed"
 cd "libbluray-$VERSION/"
 checkStatus $? "change directory failed"
 
