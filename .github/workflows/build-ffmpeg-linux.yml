@@ -46,9 +46,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-c-
 
-      # 5. 安装 cargo-c
+      # 5. 安装 cargo-c (利用缓存跳过重复安装)
       - name: Install cargo-c
-        run: cargo install cargo-c --locked
+        run: |
+          if ! command -v cargo-cbuild &> /dev/null; then
+            cargo install cargo-c --locked
+          else
+            echo "cargo-c is already installed from cache, skipping!"
+          fi
 
       # 6. 【修改点】恢复 ccache 缓存 (只负责拉取)
       - name: Restore ccache
