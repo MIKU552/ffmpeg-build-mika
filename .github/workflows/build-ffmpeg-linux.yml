@@ -28,7 +28,7 @@ jobs:
             python3-venv python3-virtualenv nasm git-lfs docbook-utils \
             xsltproc asciidoc xmlto gperf autopoint automake libtool autoconf \
             gettext liblzma-dev libnuma-dev libssl-dev ccache \
-            libva-dev libvulkan-dev libdrm-dev glslang-dev glslang-tools libshaderc-dev
+            libva-dev libvulkan-dev vulkan-validationlayers-dev spirv-tools libglslang-dev libshaderc-dev libdrm-dev
 
       # 3. 安装 Rust 工具链
       - name: Install Rust
