@@ -211,25 +211,49 @@ DOWNLOAD_URLS=(
     "https://driveshare.miku552.top/0:/dev/ffbuild/taikotemoto.y4m.xz"
 )
 
+# 定义 UA 伪装
+FAKE_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+# 定义最大重试次数
+MAX_RETRIES=5
+
 for url in "${DOWNLOAD_URLS[@]}"; do
     filename=$(basename "$url")
     if [ ! -f "$SAMPLE_DIR/$filename" ]; then
         echo "Downloading $filename..."
         
-        # 定义一个常见的浏览器 User-Agent 来绕过 Cloudflare/GoIndex 的 403 防火墙
-        FAKE_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        RETRY_COUNT=0
+        DOWNLOAD_SUCCESS="NO"
         
-        # 优先使用 curl，增加 -A 参数伪装 UA
-        if command -v curl >/dev/null 2>&1; then
-            curl -fL -A "$FAKE_UA" -o "$SAMPLE_DIR/$filename" "$url"
-        elif command -v wget >/dev/null 2>&1; then
-            # 如果用 wget，使用 -U 参数伪装 UA
-            wget -U "$FAKE_UA" -O "$SAMPLE_DIR/$filename" "$url"
-        else
-            echo "ERROR: Neither curl nor wget found. Cannot download $filename."
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            # 【修改点】优先使用 wget
+            if command -v wget >/dev/null 2>&1; then
+                # wget 下载 (-t 3 表示内置重试3次)
+                wget -t 3 -U "$FAKE_UA" -O "$SAMPLE_DIR/$filename" "$url"
+            elif command -v curl >/dev/null 2>&1; then
+                # 备用：curl 下载
+                curl -fL --retry 3 -A "$FAKE_UA" -o "$SAMPLE_DIR/$filename" "$url"
+            else
+                echo "ERROR: Neither wget nor curl found. Cannot download $filename."
+                exit 1
+            fi
+            
+            # 检查上一条下载命令的退出状态码
+            if [ $? -eq 0 ]; then
+                DOWNLOAD_SUCCESS="YES"
+                break # 下载成功，跳出重试循环
+            else
+                RETRY_COUNT=$((RETRY_COUNT+1))
+                echo "WARNING: Download failed for $filename. Retrying ($RETRY_COUNT/$MAX_RETRIES) in 5 seconds..."
+                # 每次失败后等 5 秒再重试，防止被服务器拉黑
+                sleep 5
+            fi
+        done
+        
+        # 如果重试了 5 次还是失败，则报错退出整个脚本
+        if [ "$DOWNLOAD_SUCCESS" = "NO" ]; then
+            echo "ERROR: Failed to download $filename after $MAX_RETRIES attempts. Please check network or URL."
             exit 1
         fi
-        checkStatus $? "Failed to download $filename"
     else
         echo "Found $filename, skipping download."
     fi
