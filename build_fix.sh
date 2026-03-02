@@ -58,7 +58,6 @@ SKIP_FDK_AAC="NO"
 
 # Tool skips (动态判断 Windows)
 if [ "$OS_WINDOWS" = "YES" ]; then
-    # Windows 环境已通过 pacman 预装这些工具，必须跳过源码编译
     SKIP_NASM="YES"
     SKIP_CMAKE="YES"
     SKIP_NINJA="YES"
@@ -145,7 +144,6 @@ done
 # --- Directory Definitions ---
 BASE_DIR="$( cd "$( dirname "$0" )" > /dev/null 2>&1 && pwd )"
 echo "base directory is ${BASE_DIR}"
-# Assume script and test dirs are relative to BASE_DIR
 SCRIPT_DIR="${BASE_DIR}/script"
 echo "script directory is ${SCRIPT_DIR}"
 WORKING_DIR="$( pwd )"
@@ -167,7 +165,6 @@ fi
 
 # --- Load Functions ---
 if [ -f "$SCRIPT_DIR/functions.sh" ]; then
-    # shellcheck source=./script/functions.sh
     . "$SCRIPT_DIR/functions.sh"
 else
     echo "ERROR: functions.sh not found in $SCRIPT_DIR"
@@ -200,10 +197,44 @@ if [ $SKIP_TEST = "NO" ]; then
     checkStatus $? "unable to create test output directory"
 fi
 
+# =========================================================================
+# --- Prepare PGO Sample Files ---
+# =========================================================================
+SAMPLE_DIR="${BASE_DIR}/sample"
+mkdir -p "$SAMPLE_DIR"
+echoSection "Downloading PGO sample files to $SAMPLE_DIR"
+
+DOWNLOAD_URLS=(
+    "https://driveshare.miku552.top/0:/dev/ffbuild/4k_bbb.y4m.xz"
+    "https://driveshare.miku552.top/0:/dev/ffbuild/720p_bbb.y4m.xz"
+    "https://driveshare.miku552.top/0:/dev/ffbuild/stefan_sif.y4m.xz"
+    "https://driveshare.miku552.top/0:/dev/ffbuild/taikotemoto.y4m.xz"
+)
+
+for url in "${DOWNLOAD_URLS[@]}"; do
+    filename=$(basename "$url")
+    if [ ! -f "$SAMPLE_DIR/$filename" ]; then
+        echo "Downloading $filename..."
+        # 优先使用 curl，如果不可用则使用 wget
+        if command -v curl >/dev/null 2>&1; then
+            curl -fL -o "$SAMPLE_DIR/$filename" "$url"
+        elif command -v wget >/dev/null 2>&1; then
+            wget -O "$SAMPLE_DIR/$filename" "$url"
+        else
+            echo "ERROR: Neither curl nor wget found. Cannot download $filename."
+            exit 1
+        fi
+        checkStatus $? "Failed to download $filename"
+    else
+        echo "Found $filename, skipping download."
+    fi
+done
+# =========================================================================
+
+
 # --- Setup Global Build Environment ---
 echoSection "Setup Global Build Environment for OS: ${OS_NAME}"
 
-# --- Compiler Selection ---
 if [ "$OS_NAME" = "Darwin" ]; then
     echo "Using Clang (Xcode default)"
 elif [ "$OS_WINDOWS" = "YES" ]; then
@@ -225,7 +256,6 @@ else # Linux
     echo "Set: CC=$CC, CXX=$CXX, AR=$AR, NM=$NM, RANLIB=$RANLIB, LD=$LD"
 fi
 
-# --- Environment Variables ---
 PIC_FLAG=""
 if [ "$OS_NAME" = "Linux" ]; then
     PIC_FLAG="-fPIC"
@@ -249,7 +279,6 @@ fi
 export LDFLAGS="$LDFLAGS_PATHS"
 export PKG_CONFIG_PATH="${PKG_CONFIG_PATHS}:${PKG_CONFIG_PATH}"
 
-# Prepend TOOL_DIR/bin to PATH now
 export PATH="$TOOL_DIR/bin:$PATH"
 
 echo "CFLAGS=${CFLAGS}"
@@ -498,7 +527,6 @@ elif [ "$OS_WINDOWS" = "YES" ]; then
     run_build "amf" "build-amf" "include/AMF/core/VulkanAMF.h" "amf" "--enable-amf" "NO" "NO"
     run_build "vpl" "build-vpl" "lib/libvpl.a" "vpl" "--enable-libvpl" "NO" "NO"
     
-    # 【已修正】拼写错误修复，正确注入至 FFMPEG_LIB_FLAGS
     FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-d3d11va --enable-dxva2 --enable-mediafoundation"
 fi
 
