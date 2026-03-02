@@ -228,10 +228,10 @@ for url in "${DOWNLOAD_URLS[@]}"; do
             # 【修改点】优先使用 wget
             if command -v wget >/dev/null 2>&1; then
                 # wget 下载 (-t 3 表示内置重试3次)
-                wget -t 3 -U "$FAKE_UA" -O "$SAMPLE_DIR/$filename" "$url"
+                wget -q -t 3 -U "$FAKE_UA" -O "$SAMPLE_DIR/$filename" "$url"
             elif command -v curl >/dev/null 2>&1; then
                 # 备用：curl 下载
-                curl -fL --retry 3 -A "$FAKE_UA" -o "$SAMPLE_DIR/$filename" "$url"
+                curl -fL -s --retry 3 -A "$FAKE_UA" -o "$SAMPLE_DIR/$filename" "$url"
             else
                 echo "ERROR: Neither wget nor curl found. Cannot download $filename."
                 exit 1
@@ -268,8 +268,8 @@ if [ "$OS_NAME" = "Darwin" ]; then
     echo "Using Clang (Xcode default)"
 elif [ "$OS_WINDOWS" = "YES" ]; then
     echo "Using GCC (MinGW-w64)"
-    export CC=gcc
-    export CXX=g++
+    export CC="ccache gcc"
+    export CXX="ccache g++"
     export AR=ar
     export NM=nm
     export RANLIB=ranlib

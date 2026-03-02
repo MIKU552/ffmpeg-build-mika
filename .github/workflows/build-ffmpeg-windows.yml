@@ -90,10 +90,18 @@ jobs:
       - name: Run Build Script
         shell: msys2 {0}
         run: |
-          # 挂载 ccache 和刚才自定义的 cargo 路径
-          export PATH="/mingw64/lib/ccache/bin:$PATH"
           export PATH="${{ github.workspace }}/.cargo/bin:$PATH"
+          
+          # 【魔法参数】强迫 ccache 忽略绝对路径和环境差异，大幅提升 CI 命中率！
+          export CCACHE_BASEDIR="${{ github.workspace }}"
+          export CCACHE_NOHASHDIR=1
+          export CCACHE_COMPILERCHECK=content
+          
           ccache -M 2G
+          
+          echo "==== ccache stats before build ===="
+          ccache -s
+          echo "==================================="
           
           export CMAKE_C_COMPILER_LAUNCHER=ccache
           export CMAKE_CXX_COMPILER_LAUNCHER=ccache
@@ -101,6 +109,10 @@ jobs:
           chmod +x build.sh build_fix.sh script/*.sh
           mkdir -p build && cd build
           ../build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
+          
+          echo "==== ccache stats after build ===="
+          ccache -s
+          echo "=================================="
 
       - name: Save Cargo Cache
         if: always()
