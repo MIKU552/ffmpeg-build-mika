@@ -67,6 +67,21 @@ download(){
 }
 
 prepareMeson(){
+    # --- 【新增】Windows/MSYS2 专属逃生通道 ---
+    local OS_DETECT=$(uname -s)
+    if [[ "$OS_DETECT" == MINGW* ]] || [[ "$OS_DETECT" == MSYS* ]]; then
+        echo "Windows (MSYS2) detected: Bypassing Python venv and pip."
+        if command -v meson >/dev/null 2>&1 && command -v ninja >/dev/null 2>&1; then
+            MESON_VERSION=$(meson -v 2> /dev/null)
+            echo "Using native pacman meson ($MESON_VERSION) and ninja."
+            return 0
+        else
+            echo "ERROR: Native meson or ninja not found in MSYS2. Check your pacman installation."
+            exit 1
+        fi
+    fi
+    # ----------------------------------------
+
     # Check if python3 is available
     if ! command -v python3 >/dev/null 2>&1; then
         echo "ERROR: python3 is required for meson builds but not found."
@@ -82,7 +97,6 @@ prepareMeson(){
         echo "ERROR: python3 venv module (often python3-venv package) is required for meson builds but not found."
         exit 1
     fi
-
 
     python3 -m venv .venv
     if [ $? -ne 0 ]; then
