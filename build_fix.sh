@@ -284,6 +284,9 @@ fi
 export LDFLAGS="$LDFLAGS_PATHS"
 export PKG_CONFIG_PATH="${PKG_CONFIG_PATHS}:${PKG_CONFIG_PATH}"
 
+# 【新增】打通 MSYS2、MinGW64 和本地工具链的宏文件路径，解决 pkg.m4 找不到的问题
+export ACLOCAL_PATH="${TOOL_DIR}/share/aclocal:/mingw64/share/aclocal:/usr/share/aclocal"
+
 export PATH="$TOOL_DIR/bin:$PATH"
 
 echo "CFLAGS=${CFLAGS}"
