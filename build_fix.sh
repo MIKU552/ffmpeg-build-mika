@@ -215,11 +215,16 @@ for url in "${DOWNLOAD_URLS[@]}"; do
     filename=$(basename "$url")
     if [ ! -f "$SAMPLE_DIR/$filename" ]; then
         echo "Downloading $filename..."
-        # 优先使用 curl，如果不可用则使用 wget
+        
+        # 定义一个常见的浏览器 User-Agent 来绕过 Cloudflare/GoIndex 的 403 防火墙
+        FAKE_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        
+        # 优先使用 curl，增加 -A 参数伪装 UA
         if command -v curl >/dev/null 2>&1; then
-            curl -fL -o "$SAMPLE_DIR/$filename" "$url"
+            curl -fL -A "$FAKE_UA" -o "$SAMPLE_DIR/$filename" "$url"
         elif command -v wget >/dev/null 2>&1; then
-            wget -O "$SAMPLE_DIR/$filename" "$url"
+            # 如果用 wget，使用 -U 参数伪装 UA
+            wget -U "$FAKE_UA" -O "$SAMPLE_DIR/$filename" "$url"
         else
             echo "ERROR: Neither curl nor wget found. Cannot download $filename."
             exit 1
