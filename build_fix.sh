@@ -183,9 +183,11 @@ mkdir -p "$TOOL_DIR/bin"
 
 # =========================================================================
 # 【魔法拦截器】(仅限 Windows 启用，绝对不影响 Linux/macOS)
-# 智能转换 make 为 ninja 解决 CMake 构建冲突
+# 1. 智能转换 make 为 ninja 解决 CMake 构建冲突
+# 2. 强制给 CMake 注入向后兼容参数，解决 CMake 4.0+ 拒绝编译老库（如 SRT）的问题
 # =========================================================================
 if [ "$OS_WINDOWS" = "YES" ]; then
+    # 拦截器 1：Make -> Ninja
     cat << 'EOF' > "$TOOL_DIR/bin/make"
 #!/bin/bash
 if [ -f "build.ninja" ]; then
@@ -197,6 +199,14 @@ else
 fi
 EOF
     chmod +x "$TOOL_DIR/bin/make"
+
+    # 拦截器 2：CMake 向下兼容补丁
+    cat << 'EOF' > "$TOOL_DIR/bin/cmake"
+#!/bin/bash
+echo "✨ [Magic Wrapper] Injecting CMake 3.5 compatibility policy for legacy libs..."
+exec /mingw64/bin/cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 "$@"
+EOF
+    chmod +x "$TOOL_DIR/bin/cmake"
 fi
 # =========================================================================
 
