@@ -2,7 +2,7 @@ name: FFmpeg Build Windows CI
 
 on: 
   push:
-    branches: [ "windows-support" ]
+    branches: [ "MIXWINDOWSCI" ]
   workflow_dispatch: 
 
 env:
