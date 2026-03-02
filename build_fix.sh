@@ -192,9 +192,8 @@ if [ -f "build.ninja" ]; then
     echo "✨ [Magic Wrapper] 'build.ninja' detected! Redirecting 'make' to 'ninja'..."
     exec ninja "$@"
 else
-    # 动态寻找环境变量里下一个真实的 make，防止死循环或路径写死
-    REAL_MAKE=$(which -a make | grep -v "$TOOL_DIR/bin/make" | head -n 1)
-    exec "$REAL_MAKE" "$@"
+    # 摒弃 which 动态查找，直接写死 MSYS2 原生 make 的绝对路径
+    exec /usr/bin/make "$@"
 fi
 EOF
     chmod +x "$TOOL_DIR/bin/make"
