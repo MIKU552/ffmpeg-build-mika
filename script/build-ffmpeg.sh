@@ -95,7 +95,7 @@ EXTRA_VERSION="MiKayule-Group-$(date +%Y%m%d)" # Add date to version
 # Base flags inherited from build.sh: CFLAGS, CXXFLAGS, CPPFLAGS, LDFLAGS, PKG_CONFIG_PATH
 
 # --- Common Configure Arguments ---
-CONFIGURE_ARGS="--prefix=\"$OUT_DIR\" --pkg-config-flags=--static --disable-static --enable-shared --enable-lto --extra-version=\"$EXTRA_VERSION\" --enable-gray"
+CONFIGURE_ARGS="--prefix=$OUT_DIR --pkg-config-flags=--static --disable-static --enable-shared --enable-lto --extra-version=$EXTRA_VERSION --enable-gray"
 
 # 显式指定头文件和库路径，拆分多次传入以避免空格被截断
 CONFIGURE_ARGS="$CONFIGURE_ARGS --extra-cflags=-I$TOOL_DIR/include"

@@ -60,30 +60,11 @@ echo "Applying post-installation fix to whisper.pc for static linking..."
 WHISPER_PC="$TOOL_DIR/lib/pkgconfig/whisper.pc"
 if [ -f "$WHISPER_PC" ]; then
     echo "Found pkgconfig file at: $WHISPER_PC"
-    
-    OS_NAME=$(uname)
-    
-    # 动态检测 ggml 拆分出来的子库 (不同平台编译出的子库可能不同，如 ggml-metal)
-    GGML_LIBS="-lggml"
-    for sublib in ggml-cpu ggml-metal ggml-blas ggml-base; do
-        if [ -f "$TOOL_DIR/lib/lib${sublib}.a" ]; then
-            GGML_LIBS="$GGML_LIBS -l${sublib}"
-        fi
-    done
-    
-    # 根据操作系统注入不同的底层依赖
-    if [ "$OS_NAME" = "Darwin" ]; then
-        # macOS: 使用 libc++，且由于底层开启了 Metal/Accelerate，必须链接 Apple 原生框架
-        EXTRA_LIBS="$GGML_LIBS -lc++ -framework Accelerate -framework Metal -framework Foundation -framework CoreGraphics -lm -lpthread"
-    else
-        # Linux: 使用 libstdc++ 和 OpenMP
-        EXTRA_LIBS="$GGML_LIBS -lstdc++ -fopenmp -lm -lpthread"
-    fi
-    
-    # 使用跨平台的 run_sed 强行把所有隐藏依赖补齐
-    run_sed "s|-lwhisper|-lwhisper $EXTRA_LIBS|g" "$WHISPER_PC"
+    # whisper.cpp 是 C++ 编写且使用了 OpenMP，并被拆分成了多个 ggml 子库。
+    # 这里我们使用跨平台的 run_sed 强行把所有隐藏依赖补齐，以骗过 FFmpeg 的探测。
+    run_sed "s|-lwhisper|-lwhisper -lggml -lggml-cpu -lggml-base -lstdc++ -fopenmp -lm -lpthread|g" "$WHISPER_PC"
     checkStatus $? "modify pkgconfig file failed"
-    echo "Dependencies successfully added to $WHISPER_PC: $EXTRA_LIBS"
+    echo "Dependencies successfully added to $WHISPER_PC"
 else
     echo "Warning: whisper.pc not found!"
 fi

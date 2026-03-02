@@ -1,43 +1,31 @@
-name: FFmpeg Build CI
+name: FFmpeg Build macOS CI
 
 on: 
   push:
-    branches: [ "MIX" ]
+    branches: [ "MIXMACOSCI" ]
   pull_request:
-    branches: [ "MIX" ]
+    branches: [ "MIXMACOSCI" ]
   workflow_dispatch: 
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-24.04
+  build-macos:
+    # 明确指定使用最新的 macOS 26 (Tahoe) 运行环境
+    runs-on: macos-26
     env:
-      CARGO_C_VERSION: "0.10.20" # 在这里统一管理 cargo-c 的版本
+      CARGO_C_VERSION: "0.10.20"
 
     steps:
-      # 1. 签出代码并拉取 LFS 文件
+      # 1. 签出代码
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      # 2. 安装系统依赖 (集成 LunarG 官方源以获取最新 Vulkan SDK)
+      # 2. macOS 使用 Homebrew 安装系统依赖 (不包含 Linux 专属的 Vulkan/VAAPI)
       - name: Install System Dependencies
         run: |
-          # 1. 导入 LunarG 官方签名密钥和软件源 (专供 Ubuntu 24.04 Noble)
-          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
-          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list http://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
-          
-          # 2. 更新软件源
-          sudo apt-get update
-          
-          # 3. 安装依赖（使用官方 vulkan-sdk 替代旧的散装包）
-          sudo apt-get install -y --no-install-recommends \
-            build-essential gcc g++ binutils make cmake ninja-build pkg-config \
-            curl wget patch tar gzip bzip2 xz-utils zip python3 python3-pip \
-            python3-venv python3-virtualenv nasm git-lfs docbook-utils \
-            xsltproc asciidoc xmlto gperf autopoint automake libtool autoconf \
-            gettext liblzma-dev libnuma-dev libssl-dev ccache \
-            libva-dev libdrm-dev vulkan-sdk
+          brew update
+          brew install automake libtool cmake ninja nasm pkg-config ccache wget xz
 
       # 3. 安装 Rust 工具链
       - name: Install Rust
@@ -52,15 +40,14 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          # 将版本号加入缓存键名，版本号一变，强制重新缓存
           key: ${{ runner.os }}-cargo-c-${{ env.CARGO_C_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-c-${{ env.CARGO_C_VERSION }}-
 
-      # 5. 安装 cargo-c (精确版本校验，修复 Bash 管道短路隐患)
+      # 5. 安装 cargo-c (精确版本校验与防冲突)
       - name: Install cargo-c
         run: |
-          set +e # 临时关闭错误即退出机制，防止检测失败时 action 中断
+          set +e
           HAS_CARGO_C=$(command -v cargo-cbuild)
           if [ -n "$HAS_CARGO_C" ]; then
             CURRENT_VERSION=$(cargo cbuild --version 2>/dev/null)
@@ -69,19 +56,18 @@ jobs:
               SKIP_INSTALL="true"
             fi
           fi
-          set -e # 恢复错误即退出机制
+          set -e
           
           if [ "$SKIP_INSTALL" != "true" ]; then
             echo "Installing/Updating cargo-c to v${{ env.CARGO_C_VERSION }}..."
             cargo install cargo-c --version ${{ env.CARGO_C_VERSION }} --locked --force
           fi
 
-      # 6. 恢复 ccache 缓存 (只负责拉取)
+      # 6. 恢复 ccache 缓存 (macOS 路径为 ~/Library/Caches/ccache)
       - name: Restore ccache
         uses: actions/cache/restore@v4
         with:
-          path: ~/.cache/ccache
-          # 加上 run_attempt 保证 key 绝对唯一，避免已存在冲突
+          path: ~/Library/Caches/ccache
           key: ${{ runner.os }}-ccache-${{ github.sha }}-${{ github.run_attempt }}
           restore-keys: |
             ${{ runner.os }}-ccache-
@@ -90,7 +76,8 @@ jobs:
       - name: Run Build Script
         id: build_script
         run: |
-          export PATH="/usr/lib/ccache:$PATH"
+          # 挂载 homebrew 的 ccache
+          export PATH="$(brew --prefix ccache)/libexec:$PATH"
           ccache -M 2G
           
           echo "==== ccache stats before build ===="
@@ -99,28 +86,30 @@ jobs:
 
           chmod +x build.sh build_fix.sh script/*.sh
           mkdir -p build && cd build
+          
+          # 运行编译，build_fix.sh 内部有判断 OS_NAME="Darwin" 的逻辑，自动处理 videotoolbox
           ../build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
           
           echo "==== ccache stats after build ===="
           ccache -s
           echo "=================================="
 
-      # 8. 保存 ccache 缓存 (只负责保存，且无论成功失败都执行)
+      # 8. 保存 ccache 缓存
       - name: Save ccache
-        if: always() # 核心：即使上面的 Run Build Script 报错退出了，这一步也会强制执行
+        if: always()
         uses: actions/cache/save@v4
         with:
-          path: ~/.cache/ccache
+          path: ~/Library/Caches/ccache
           key: ${{ runner.os }}-ccache-${{ github.sha }}-${{ github.run_attempt }}
 
-      # 9. 上传构建成功的产物
+      # 9. 上传产物以备不时之需
       - name: Upload Build Artifacts
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-linux-gcc-build
+          name: ffmpeg-macos-clang-build
           path: |
-            build/ffmpeg-build*.tar.gz
+            build/ffmpeg-build*.zip
             build/log/
           if-no-files-found: error
 
@@ -129,44 +118,41 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-build-logs-on-failure-(ubuntu-24.04-gcc)
+          name: ffmpeg-build-logs-on-failure-(macos-26-clang)
           path: build/log/
           if-no-files-found: ignore
 
-      # 11. 提取 FFmpeg 版本，重命名产物，并生成 Release Notes
+      # 11. 提取版本，重命名产物，并生成 Release Notes
       - name: Prepare Release
         if: success()
         run: |
-          # 1. 赋予执行权限，防止因构建生成的二进制无权限导致无法执行
           chmod -R 755 build/out/bin/
           
-          # 2. 注入动态库路径
-          export LD_LIBRARY_PATH="$(pwd)/build/out/lib:$(pwd)/build/out/lib64:$LD_LIBRARY_PATH"
+          # 【核心】macOS 中必须使用 DYLD_LIBRARY_PATH 来加载你刚刚编译出来的共享动态库
+          export DYLD_LIBRARY_PATH="$(pwd)/build/out/lib:$(pwd)/build/out/lib64:$DYLD_LIBRARY_PATH"
           
-          # 3. 运行 FFmpeg 获取真实的 snapshot 版本号，并剔除冗长的 extra-version
+          # 获取版本号并切除尾部赘述
           RAW_VERSION=$(./build/out/bin/ffmpeg -version | head -n1 | awk '{print $3}')
           FFMPEG_VERSION=$(echo "$RAW_VERSION" | sed 's/-MiKayule.*//')
           echo "FFMPEG_VERSION=$FFMPEG_VERSION" >> $GITHUB_ENV
           
-          # 4. 重命名打包文件
-          NEW_TAR_NAME="ffmpeg-${FFMPEG_VERSION}-linux-x86_64-gcc.tar.gz"
-          mv build/ffmpeg-build*.tar.gz "build/${NEW_TAR_NAME}"
-          echo "TAR_NAME=${NEW_TAR_NAME}" >> $GITHUB_ENV
+          # macOS 的脚本打包产物是 .zip
+          NEW_ZIP_NAME="ffmpeg-${FFMPEG_VERSION}-macos-arm64-clang.zip"
+          mv build/ffmpeg-build*.zip "build/${NEW_ZIP_NAME}"
+          echo "ZIP_NAME=${NEW_ZIP_NAME}" >> $GITHUB_ENV
           
-          # 5. 设置东八区时间，生成 ISO 8601 严格标准时间戳
+          # 设定标准 ISO 8601 时区时间戳
           export TZ='Asia/Shanghai'
           CURRENT_TIME=$(date +'%Y-%m-%dT%H:%M:%S+08:00')
           
-          # 6. 动态写入 Release Notes (Markdown格式)
           NOTES_FILE="release_notes.md"
           
-          # 写入中文说明
+          # 写入中英双语 Release Notes
           echo "### ~~最新最热的 FFmpeg~~" > $NOTES_FILE
           echo "编译于 \`${CURRENT_TIME}\`。视频编码库均选用最新的 commit，其余库使用的则是最新的 release。" >> $NOTES_FILE
           echo "其中 x265, SVT-AV1, VVenC, VVdeC 编译开启了 LTO 优化和 PGO 优化，FFmpeg 开启了 LTO 优化。" >> $NOTES_FILE
           echo "" >> $NOTES_FILE
           
-          # 写入英文说明
           echo "Compiled on \`${CURRENT_TIME}\`. Video encoding libraries use the latest commit, while other libraries use the latest release." >> $NOTES_FILE
           echo "x265, SVT-AV1, VVenC, and VVdeC are compiled with LTO and PGO enabled. FFmpeg is compiled with LTO enabled." >> $NOTES_FILE
           echo "" >> $NOTES_FILE
@@ -174,11 +160,9 @@ jobs:
           echo "### Compiled Component Versions" >> $NOTES_FILE
           echo "" >> $NOTES_FILE
           
-          # 7. 遍历根目录下的 version/ 文件夹并生成列表
           for f in $(ls version/* | sort); do
               if [ -f "$f" ]; then
                   comp=$(basename "$f")
-                  # 排除 ffmpeg 本身，避免与标题重复
                   if [ "$comp" = "ffmpeg" ]; then
                       continue
                   fi
@@ -187,15 +171,15 @@ jobs:
               fi
           done
           
-      # 12. 自动发布 GitHub Release 并上传附件
+      # 12. 自动发布 macOS 版 GitHub Release 附件
       - name: Create Release and Upload Asset
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.FFMPEG_VERSION }}-${{ github.run_number }}
-          # 这行就是 Release 的标题！
-          name: FFmpeg Build ${{ env.FFMPEG_VERSION }}
+          # 加一个 -macos 后缀以防和 Linux 并行运行时出现 Git Tag 冲突
+          tag_name: ${{ env.FFMPEG_VERSION }}-${{ github.run_number }}-macos
+          name: FFmpeg macOS Build ${{ env.FFMPEG_VERSION }}
           body_path: release_notes.md
-          files: build/${{ env.TAR_NAME }}
+          files: build/${{ env.ZIP_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
