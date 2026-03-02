@@ -73,10 +73,13 @@ if [ -f "$WHISPER_PC" ]; then
     
     # 根据操作系统注入不同的底层依赖
     if [ "$OS_NAME" = "Darwin" ]; then
-        # macOS: 使用 libc++，且由于底层开启了 Metal/Accelerate，必须链接 Apple 原生框架
+        # macOS 专属
         EXTRA_LIBS="$GGML_LIBS -lc++ -framework Accelerate -framework Metal -framework Foundation -framework CoreGraphics -lm -lpthread"
+    elif [[ "$OS_NAME" == MINGW* ]] || [[ "$OS_NAME" == MSYS* ]]; then
+        # Windows MinGW 专属 (需补齐 C++标准库、OpenMP 和 Windows底层 Socket/多媒体支持)
+        EXTRA_LIBS="$GGML_LIBS -lstdc++ -fopenmp -lm -lpthread -lws2_32 -lole32 -lmfuuid -lstrmiids"
     else
-        # Linux: 使用 libstdc++ 和 OpenMP
+        # Linux 专属
         EXTRA_LIBS="$GGML_LIBS -lstdc++ -fopenmp -lm -lpthread"
     fi
     

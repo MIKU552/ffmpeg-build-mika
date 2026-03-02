@@ -95,7 +95,13 @@ EXTRA_VERSION="MiKayule-Group-$(date +%Y%m%d)" # Add date to version
 # Base flags inherited from build.sh: CFLAGS, CXXFLAGS, CPPFLAGS, LDFLAGS, PKG_CONFIG_PATH
 
 # --- Common Configure Arguments ---
-CONFIGURE_ARGS="--prefix=$OUT_DIR --pkg-config-flags=--static --disable-static --enable-shared --enable-lto --extra-version=$EXTRA_VERSION --enable-gray"
+if [[ "$OS_NAME" == MINGW* ]] || [[ "$OS_NAME" == MSYS* ]]; then
+    # Windows 专属配置：强制纯静态、无 Shared，并显式指定目标系统为 mingw32 (即使是 64 位也叫 mingw32)
+    CONFIGURE_ARGS="--prefix=$OUT_DIR --pkg-config-flags=--static --enable-static --disable-shared --enable-lto --extra-version=$EXTRA_VERSION --enable-gray --target-os=mingw32 --arch=x86_64"
+else
+    # Linux / macOS 依然保持你之前的“伪静态/绿色共享版”配置
+    CONFIGURE_ARGS="--prefix=$OUT_DIR --pkg-config-flags=--static --disable-static --enable-shared --enable-lto --extra-version=$EXTRA_VERSION --enable-gray"
+fi
 
 # 显式指定头文件和库路径，拆分多次传入以避免空格被截断
 CONFIGURE_ARGS="$CONFIGURE_ARGS --extra-cflags=-I$TOOL_DIR/include"

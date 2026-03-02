@@ -17,8 +17,14 @@
 # limitations under the License.
 
 # --- Detect OS ---
-OS_NAME="$(uname)"
-echo "Detected OS: ${OS_NAME}"
+OS_NAME=$(uname -s)
+OS_WINDOWS="NO"
+if [[ "$OS_NAME" == MINGW* ]] || [[ "$OS_NAME" == MSYS* ]]; then
+    OS_WINDOWS="YES"
+    echo "Detected OS: Windows (MSYS2/MinGW)"
+else
+    echo "Detected OS: $OS_NAME"
+fi
 
 # --- Argument Parsing (Defaults) ---
 SKIP_BUNDLE="YES"
@@ -535,6 +541,15 @@ elif [ "$OS_NAME" = "Linux" ]; then
     # 开启 VAAPI 和 Vulkan 硬件加速
     # 附带开启 libdrm (常用于Linux硬解的数据流转)
     FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-vaapi --enable-vulkan --enable-libdrm"
+elif [ "$OS_WINDOWS" = "YES" ]; then
+    echo "Adding Windows specific HWAccel libraries..."
+    # 调用你刚刚新增的那三个脚本
+    run_build "ffnvcodec" "build-ffnvcodec" "lib/pkgconfig/ffnvcodec.pc" "ffnvcodec" "--enable-ffnvcodec --enable-nvdec --enable-nvenc --enable-cuvid" "NO" "NO"
+    run_build "amf" "build-amf" "include/AMF/core/VulkanAMF.h" "amf" "--enable-amf" "NO" "NO"
+    run_build "vpl" "build-vpl" "lib/libvpl.a" "vpl" "--enable-libvpl" "NO" "NO"
+    
+    # 开启 Windows 系统原生的 DXVA2、D3D11 和 AMF 所需的 MediaFoundation
+    EXTRA_FLAGS="$EXTRA_FLAGS --enable-d3d11va --enable-dxva2 --enable-mediafoundation"
 fi
 
 
@@ -573,7 +588,7 @@ fi
 
 # --- Bundle Result ---
 if [ "$SKIP_BUNDLE" = "NO" ]; then
-    echoSection "Bundle result into tar.gz (Linux) or zip (macOS)"
+    echoSection "Bundle result into tar.gz (Linux) or zip (macOS/Windows)"
     echo "DEBUG: Checking contents of OUT_DIR ($OUT_DIR) before bundling:"
     ls -lA "$OUT_DIR"
     echo "-------------------------------------------"
@@ -582,21 +597,26 @@ if [ "$SKIP_BUNDLE" = "NO" ]; then
     else
         BUNDLE_FILENAME=""
         BUNDLE_CMD=""
-        if [ "$OS_NAME" = "Darwin" ]; then
+        if [ "$OS_WINDOWS" = "YES" ]; then
+            BUNDLE_FILENAME="ffmpeg-build-windows.zip"
+            BUNDLE_CMD="zip -9 -r"
+            echo "Archiving contents of $OUT_DIR to $BUNDLE_FILENAME..."
+            (cd "$OUT_DIR" && $BUNDLE_CMD "$WORKING_DIR/$BUNDLE_FILENAME" .)
+        elif [ "$OS_NAME" = "Darwin" ]; then
             BUNDLE_FILENAME="ffmpeg-build-macos.zip"
             BUNDLE_CMD="zip -9 -r"
-             echo "Archiving contents of $OUT_DIR to $BUNDLE_FILENAME..."
+            echo "Archiving contents of $OUT_DIR to $BUNDLE_FILENAME..."
             (cd "$OUT_DIR" && $BUNDLE_CMD "$WORKING_DIR/$BUNDLE_FILENAME" .) # Use . to include hidden files if any
         else # Linux
             BUNDLE_FILENAME="ffmpeg-build-linux.tar.gz"
             BUNDLE_CMD="tar -czf"
             echo "Archiving non-hidden contents of $OUT_DIR to $BUNDLE_FILENAME using subshell..."
-             (cd "$OUT_DIR" && $BUNDLE_CMD "$WORKING_DIR/$BUNDLE_FILENAME" *) # Use * for non-hidden
+            (cd "$OUT_DIR" && $BUNDLE_CMD "$WORKING_DIR/$BUNDLE_FILENAME" *) # Use * for non-hidden
         fi
 
         checkStatus $? "bundling failed"
         echo "DEBUG: Listing contents of created archive:"
-        if [ "$OS_NAME" = "Darwin" ]; then
+        if [ "$OS_WINDOWS" = "YES" ] || [ "$OS_NAME" = "Darwin" ]; then
             unzip -l "$WORKING_DIR/$BUNDLE_FILENAME"
         else
             tar -tzf "$WORKING_DIR/$BUNDLE_FILENAME"

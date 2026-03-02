@@ -47,28 +47,34 @@ checkStatus $? "unpacking failed"
 cd "zlib-$VERSION/"
 checkStatus $? "change directory failed"
 
-DETECTED_OS="$(uname -o 2> /dev/null)"
-echo "detected OS: $DETECTED_OS"
-if [ $DETECTED_OS = "Msys" ]; then
-	echo "run windows specific build"
+# 使用和主脚本一致的操作系统识别方式
+OS_NAME=$(uname -s)
+echo "detected OS: $OS_NAME"
 
-	# windows build
-	make -j $CPUS -f win32/Makefile.gcc
-	checkStatus $? "build failed"
+if [[ "$OS_NAME" == MINGW* ]] || [[ "$OS_NAME" == MSYS* ]]; then
+    echo "run windows specific build"
 
-	# install
-	make -j $CPUS -f win32/Makefile.gcc install INCLUDE_PATH=$TOOL_DIR/include LIBRARY_PATH=$TOOL_DIR/lib BINARY_PATH=$TOO_DIR/bin
-	checkStatus $? "installation failed"
+    # windows build
+    make -j $CPUS -f win32/Makefile.gcc
+    checkStatus $? "build failed"
+
+    # install
+    # 注意：win32/Makefile.gcc 官方并没有编写 install 逻辑，我们必须手动复制所需文件
+    mkdir -p "$TOOL_DIR/include"
+    mkdir -p "$TOOL_DIR/lib"
+    cp -a zlib.h zconf.h "$TOOL_DIR/include/"
+    cp -a libz.a "$TOOL_DIR/lib/"
+    checkStatus $? "installation failed"
 else
-	# prepare build
-	./configure --prefix="$TOOL_DIR" --static
-	checkStatus $? "configuration failed"
+    # prepare build
+    ./configure --prefix="$TOOL_DIR" --static
+    checkStatus $? "configuration failed"
 
-	# build
-	make -j $CPUS
-	checkStatus $? "build failed"
+    # build
+    make -j $CPUS
+    checkStatus $? "build failed"
 
-	# install
-	make install
-	checkStatus $? "installation failed"
+    # install
+    make install
+    checkStatus $? "installation failed"
 fi

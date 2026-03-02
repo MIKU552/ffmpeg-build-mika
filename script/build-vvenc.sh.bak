@@ -31,31 +31,31 @@ CPUS=$4
 OS_NAME=$(uname)
 
 # load version
-VERSION=$(cat "$SCRIPT_DIR/../version/vvdec")
+VERSION=$(cat "$SCRIPT_DIR/../version/vvenc")
 checkStatus $? "load version failed"
 echo "version: $VERSION"
 
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
-mkdir -p "vvdec" # Use -p
-cd "vvdec/"
+mkdir -p "vvenc" # Use -p
+cd "vvenc/"
 checkStatus $? "change directory failed"
 
 # download source
-VVDEC_TARBALL="vvdec-$VERSION.tar.gz"
-VVDEC_UNPACK_DIR="vvdec-$VERSION"
-download https://github.com/fraunhoferhhi/vvdec/archive/$VERSION.tar.gz "$VVDEC_TARBALL"
+VVENC_TARBALL="vvenc-$VERSION.tar.gz"
+VVENC_UNPACK_DIR="vvenc-$VERSION"
+download https://github.com/fraunhoferhhi/vvenc/archive/$VERSION.tar.gz "$VVENC_TARBALL"
 checkStatus $? "download failed"
 
 # unpack
-tar -zxf "$VVDEC_TARBALL"
+tar -zxf "$VVENC_TARBALL"
 checkStatus $? "unpack failed"
-rm "$VVDEC_TARBALL" # Clean up
+rm "$VVENC_TARBALL" # Clean up
 
 # --- PGO Step 1: Build Instrumented Binary ---
-echoSection "Build vvdec PGO Generator"
-cd "$VVDEC_UNPACK_DIR/"
+echoSection "Build vvenc PGO Generator"
+cd "$VVENC_UNPACK_DIR/"
 checkStatus $? "change directory failed"
 
 mkdir -p "pgogen"
@@ -74,7 +74,6 @@ else # Linux (GCC)
 fi
 
 cmake -S .. -B build/release-static -G 'Ninja' \
-      -DVVDEC_INSTALL_VVDECAPP=ON \
       -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
       -DCMAKE_INSTALL_PREFIX=$(pwd)/install-prefix \
       -DCMAKE_BUILD_TYPE=Release \
@@ -89,62 +88,85 @@ cmake --build build/release-static --target install
 checkStatus $? "pgogen installation failed"
 
 # --- PGO Step 2: Training Run ---
-echoSection "Run vvdec PGO Training"
-VVENC_SOURCE_DIR="$SOURCE_DIR/vvenc/vvenc-dfebb7df74f5d7b14ab69bf910e5b388bc734883" # Assumes vvenc was built before vvdec
-ENABLE_VVDEC_PGO="NO" # Assume YES initially
-
-# Check if training input files exist
+echoSection "Run vvenc PGO Training"
+SAMPLE_FILES_EXIST="YES"
 for sample in stefan_sif taikotemoto 720p_bbb 4k_bbb; do
-    if [ ! -f "$VVENC_SOURCE_DIR/${sample}.266" ]; then
-         echo "Warning: VVC bitstream file $VVENC_SOURCE_DIR/${sample}.266 not found."
-         ENABLE_VVDEC_PGO="NO"
+    if [ ! -f "$SCRIPT_DIR/../sample/${sample}.y4m.xz" ]; then
+        echo "Warning: Sample file $SCRIPT_DIR/../sample/${sample}.y4m.xz not found."
+        SAMPLE_FILES_EXIST="NO"
     fi
 done
 
-if [ "$ENABLE_VVDEC_PGO" = "NO" ]; then
-     echo "Required VVC bitstream files missing. Skipping vvdec PGO training."
+if [ "$SAMPLE_FILES_EXIST" = "NO" ]; then
+    echo "Required sample files missing. Skipping vvenc PGO training."
+    ENABLE_VVENC_PGO="NO"
 else
-    # Run training
-    install-prefix/bin/vvdecapp -b "$VVENC_SOURCE_DIR/stefan_sif.266" -o /dev/null
-    checkStatus $? "PGO training failed on stefan_sif.266"
-    install-prefix/bin/vvdecapp -b "$VVENC_SOURCE_DIR/taikotemoto.266" -o /dev/null
-    checkStatus $? "PGO training failed on taikotemoto.266"
-    install-prefix/bin/vvdecapp -b "$VVENC_SOURCE_DIR/720p_bbb.266" -o /dev/null
-    checkStatus $? "PGO training failed on 720p_bbb.266"
-    install-prefix/bin/vvdecapp -b "$VVENC_SOURCE_DIR/4k_bbb.266" -o /dev/null
-    checkStatus $? "PGO training failed on 4k_bbb.266"
+    ENABLE_VVENC_PGO="YES"
+    echo "Generating profiles (this may take a very long time)..."
+    OUTPUT_BITSTREAM_DIR=".." # Save bitstreams in parent dir (vvenc-$VERSION)
+    xz -dc "$SCRIPT_DIR/../sample/stefan_sif.y4m.xz" | install-prefix/bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o "$OUTPUT_BITSTREAM_DIR/stefan_sif.266"
+    checkStatus $? "PGO training failed on stefan_sif"
+    # Consider commenting out slower runs if needed
+    xz -dc "$SCRIPT_DIR/../sample/taikotemoto.y4m.xz" | install-prefix/bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o "$OUTPUT_BITSTREAM_DIR/taikotemoto.266"
+    checkStatus $? "PGO training failed on taikotemoto"
+    xz -dc "$SCRIPT_DIR/../sample/720p_bbb.y4m.xz" | install-prefix/bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o "$OUTPUT_BITSTREAM_DIR/720p_bbb.266"
+    checkStatus $? "PGO training failed on 720p_bbb"
+    xz -dc "$SCRIPT_DIR/../sample/4k_bbb.y4m.xz" | install-prefix/bin/vvencapp -i - --y4m --preset slow -q 30 -t $CPUS -o "$OUTPUT_BITSTREAM_DIR/4k_bbb.266"
+    checkStatus $? "PGO training failed on 4k_bbb"
 
     # --- PGO Step 3: Process Profile Data ---
-    echoSection "Process vvdec PGO Data"
-    PROFDATA_FILE="../default.profdata"
+    echoSection "Process vvenc PGO Data"
+    # Define relative path for output, but capture absolute path *before* merge
+    PROFDATA_FILE_REL="../default.profdata"
+    PROFDATA_FILE_ABS="$(pwd)/$PROFDATA_FILE_REL" # Path relative to current dir (pgogen)
+    # Resolve ".." to get clean absolute path to where the file *will be* created
+    PROFDATA_FILE_ABS=$(cd "$(dirname "$PROFDATA_FILE_ABS")" && pwd)/$(basename "$PROFDATA_FILE_ABS")
+
     if [ "$OS_NAME" = "Darwin" ]; then
         LLVM_PROFDATA_CMD=""
-         if command -v llvm-profdata >/dev/null 2>&1; then
+        if command -v llvm-profdata >/dev/null 2>&1; then
             LLVM_PROFDATA_CMD="llvm-profdata"
         else
             XCODE_TOOLCHAIN_PATH=$(xcode-select -p 2>/dev/null)/Toolchains/XcodeDefault.xctoolchain/usr/bin
             if [ -x "$XCODE_TOOLCHAIN_PATH/llvm-profdata" ]; then
                 LLVM_PROFDATA_CMD="$XCODE_TOOLCHAIN_PATH/llvm-profdata"
             else
-                echo "ERROR: llvm-profdata not found. Cannot merge vvdec PGO profiles on macOS."
+                echo "ERROR: llvm-profdata not found. Cannot merge vvenc PGO profiles on macOS."
                 exit 1
             fi
         fi
         echo "Merging Clang PGO profiles using: $LLVM_PROFDATA_CMD"
-        $LLVM_PROFDATA_CMD merge -o "$PROFDATA_FILE" ./*.profraw
-        checkStatus $? "llvm-profdata merge failed"
+        # Execute merge using the relative output path
+        $LLVM_PROFDATA_CMD merge -o "$PROFDATA_FILE_REL" ./*.profraw
+        MERGE_STATUS=$? # Capture exit status
+
+        # Clean up raw profiles regardless of merge status for idempotency
         rm -f ./*.profraw
+
+        # Check merge status AFTER cleanup attempt
+        checkStatus $MERGE_STATUS "llvm-profdata merge failed"
+
+        # Verify the merged file exists at the calculated absolute path
+        if [ ! -f "$PROFDATA_FILE_ABS" ]; then
+             echo "ERROR: Merged profile data not found at expected absolute path: $PROFDATA_FILE_ABS"
+             echo "llvm-profdata merge might have failed silently or produced no output."
+             exit 1
+        fi
+         echo "PGO profile successfully merged to: $PROFDATA_FILE_ABS"
+
     else # Linux (GCC)
         echo "GCC PGO profile data (.gcda files) generated."
+        # For GCC, PGO use flags don't need explicit profile path, but we need a placeholder
+        PROFDATA_FILE_ABS="gcc" # Use a non-path placeholder for GCC logic below
     fi
-fi # End PGO Training Run
+fi # End PGO Training Run check
 
 # Clean build artifacts from pgogen stage
-cd .. # Back to vvdec-$VERSION
+cd .. # Back to vvenc-$VERSION
 if [ -f Makefile ]; then make realclean; else cmake --build pgogen/build/release-static --target clean > /dev/null 2>&1 || true; fi
 
 # --- Final Optimized Build ---
-echoSection "Build vvdec Optimized"
+echoSection "Build vvenc Optimized"
 mkdir -p "build"
 checkStatus $? "create final build directory failed"
 cd "build/"
@@ -153,20 +175,23 @@ checkStatus $? "change directory to final build failed"
 PGO_USE_CFLAGS=""
 PGO_USE_CXXFLAGS=""
 
-if [ "$ENABLE_VVDEC_PGO" = "YES" ]; then
+# Set PGO use flags only if PGO training was successful
+if [ "$ENABLE_VVENC_PGO" = "YES" ]; then
     if [ "$OS_NAME" = "Darwin" ]; then
-        PROFDATA_PATH_ARG="../default.profdata"
-        PGO_USE_CFLAGS="-fprofile-use=$PROFDATA_PATH_ARG"
-        PGO_USE_CXXFLAGS="-fprofile-use=$PROFDATA_PATH_ARG"
-        echo "Using Clang PGO use flags with profile: $PROFDATA_PATH_ARG"
+        # Use the absolute path captured earlier
+        PGO_USE_CFLAGS="-fprofile-use=$PROFDATA_FILE_ABS -Wno-backend-plugin"
+        PGO_USE_CXXFLAGS="-fprofile-use=$PROFDATA_FILE_ABS -Wno-backend-plugin"
+        echo "Using Clang PGO use flags with profile: $PROFDATA_FILE_ABS"
     else # Linux (GCC)
+        # GCC doesn't need the path, just the flags
         PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile"
         PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile"
         echo "Using GCC PGO use flags"
     fi
 else
-    echo "Building vvdec without PGO optimization."
+    echo "Building vvenc without PGO optimization (PGO training was skipped or failed)."
 fi
+
 
 cmake -S .. -B build/release-static -G 'Ninja' \
       -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
@@ -176,10 +201,12 @@ cmake -S .. -B build/release-static -G 'Ninja' \
       -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS"
 checkStatus $? "Final configuration failed"
 
+# Build optimized
 cmake --build build/release-static -j $CPUS
 checkStatus $? "Final build failed"
 
+# Install optimized
 cmake --build build/release-static --target install
 checkStatus $? "Final installation failed"
 
-cd ../.. # Back to SOURCE_DIR/vvdec
+cd ../.. # Back to SOURCE_DIR/vvenc
