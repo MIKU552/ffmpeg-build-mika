@@ -274,6 +274,9 @@ elif [ "$OS_WINDOWS" = "YES" ]; then
     export NM=nm
     export RANLIB=ranlib
     export LD=ld
+    # 【新增这两行】强制 CMake 在 Windows 下生成 Makefile，匹配脚本里写死的 make 命令
+    export CMAKE_GENERATOR="MinGW Makefiles"
+    export CMAKE_MAKE_PROGRAM="make"
 else # Linux
     echo "Using GCC"
     export CC=gcc
