@@ -180,6 +180,27 @@ checkStatus $? "unable to create logs directory"
 mkdir -p "$TOOL_DIR"
 checkStatus $? "unable to create tool directory"
 mkdir -p "$TOOL_DIR/bin"
+
+# =========================================================================
+# 【魔法拦截器】(仅限 Windows 启用，绝对不影响 Linux/macOS)
+# 智能转换 make 为 ninja 解决 CMake 构建冲突
+# =========================================================================
+if [ "$OS_WINDOWS" = "YES" ]; then
+    cat << 'EOF' > "$TOOL_DIR/bin/make"
+#!/bin/bash
+if [ -f "build.ninja" ]; then
+    echo "✨ [Magic Wrapper] 'build.ninja' detected! Redirecting 'make' to 'ninja'..."
+    exec ninja "$@"
+else
+    # 动态寻找环境变量里下一个真实的 make，防止死循环或路径写死
+    REAL_MAKE=$(which -a make | grep -v "$TOOL_DIR/bin/make" | head -n 1)
+    exec "$REAL_MAKE" "$@"
+fi
+EOF
+    chmod +x "$TOOL_DIR/bin/make"
+fi
+# =========================================================================
+
 mkdir -p "$TOOL_DIR/lib"
 if [ "$OS_NAME" = "Linux" ]; then
     mkdir -p "$TOOL_DIR/lib64"
@@ -274,9 +295,6 @@ elif [ "$OS_WINDOWS" = "YES" ]; then
     export NM=nm
     export RANLIB=ranlib
     export LD=ld
-    # 【新增这两行】强制 CMake 在 Windows 下生成 Makefile，匹配脚本里写死的 make 命令
-    export CMAKE_GENERATOR="MinGW Makefiles"
-    export CMAKE_MAKE_PROGRAM="make"
 else # Linux
     echo "Using GCC"
     export CC=gcc
