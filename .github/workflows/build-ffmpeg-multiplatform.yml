@@ -80,9 +80,21 @@ jobs:
         run: |
           export PATH="/usr/lib/ccache:$PATH"
           ccache -M 2G
+          
+          # 【新增】强制要求 CMake 生成的构建配置使用 ccache
+          export CMAKE_C_COMPILER_LAUNCHER=ccache
+          export CMAKE_CXX_COMPILER_LAUNCHER=ccache
+          
+          echo "==== ccache stats before build ===="
+          ccache -s
+          
           chmod +x build.sh build_fix.sh script/*.sh
           mkdir -p build && cd build
           ../build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
+          
+          # 【新增】编译完成后打印缓存命中率
+          echo "==== ccache stats after build ===="
+          ccache -s
 
       - name: Save ccache
         if: always()
@@ -185,9 +197,21 @@ jobs:
         run: |
           export PATH="$(brew --prefix ccache)/libexec:$PATH"
           ccache -M 2G
+          
+          # 【新增】强制要求 CMake 生成的构建配置使用 ccache
+          export CMAKE_C_COMPILER_LAUNCHER=ccache
+          export CMAKE_CXX_COMPILER_LAUNCHER=ccache
+          
+          echo "==== ccache stats before build ===="
+          ccache -s
+          
           chmod +x build.sh build_fix.sh script/*.sh
           mkdir -p build && cd build
           ../build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
+          
+          # 【新增】编译完成后打印缓存命中率
+          echo "==== ccache stats after build ===="
+          ccache -s
 
       - name: Save ccache
         if: always()
@@ -257,11 +281,11 @@ jobs:
           
           echo "### ~~最新最热的 FFmpeg~~" > $NOTES_FILE
           echo "编译于 \`${CURRENT_TIME}\`。视频编码库均选用最新的 commit，其余库使用的则是最新的 release。" >> $NOTES_FILE
-          echo "其中 x265, SVT-AV1, VVenC, VVdeC 编译开启了 LTO 优化和 PGO 优化，FFmpeg 开启了 LTO 优化 (注: macOS 暂未开启 PGO)。" >> $NOTES_FILE
+          echo "其中 x265, SVT-AV1, VVenC, VVdeC 编译开启了 LTO 优化和 PGO 优化，FFmpeg 开启了 LTO 优化。" >> $NOTES_FILE
           echo "" >> $NOTES_FILE
           
           echo "Compiled on \`${CURRENT_TIME}\`. Video encoding libraries use the latest commit, while other libraries use the latest release." >> $NOTES_FILE
-          echo "x265, SVT-AV1, VVenC, and VVdeC are compiled with LTO and PGO enabled. FFmpeg is compiled with LTO enabled (Note: PGO is disabled on macOS)." >> $NOTES_FILE
+          echo "x265, SVT-AV1, VVenC, and VVdeC are compiled with LTO and PGO enabled. FFmpeg is compiled with LTO enabled." >> $NOTES_FILE
           echo "" >> $NOTES_FILE
           
           echo "### Compiled Component Versions" >> $NOTES_FILE
