@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Merged FFmpeg Build Script (Linux & macOS)
+# Merged FFmpeg Build Script (Linux & macOS & Windows)
 # Based on scripts by Martin Riedl & Hayden Zheng
 # Combined and adapted for cross-platform compatibility
 
@@ -55,13 +55,21 @@ SKIP_DECKLINK="YES"
 SKIP_VVDEC="NO"
 SKIP_VVENC="NO"
 SKIP_FDK_AAC="NO"
-# Tool skips
-SKIP_NASM="NO"
+
+# Tool skips (动态判断 Windows)
+if [ "$OS_WINDOWS" = "YES" ]; then
+    # Windows 环境已通过 pacman 预装这些工具，必须跳过源码编译
+    SKIP_NASM="YES"
+    SKIP_CMAKE="YES"
+    SKIP_NINJA="YES"
+else
+    SKIP_NASM="NO"
+    SKIP_CMAKE="NO"
+    SKIP_NINJA="NO"
+fi
 SKIP_PKG_CONFIG="YES"
 SKIP_ZLIB="NO"
 SKIP_OPENSSL="NO"
-SKIP_CMAKE="NO"
-SKIP_NINJA="NO"
 SKIP_LIBXML2="NO"
 SKIP_FRIBIDI="NO"
 SKIP_FREETYPE="NO"
@@ -70,6 +78,7 @@ SKIP_HARFBUZZ="NO"
 SKIP_SDL="NO"
 SKIP_LIBASS="NO"
 SKIP_LIBOGG="NO"
+
 # Build options
 DECKLINK_SDK=""
 ENABLE_FFMPEG_PGO="NO" # Enable PGO by default (adjust as needed)
@@ -165,7 +174,6 @@ else
     exit 1
 fi
 
-
 # --- Prepare Workspace ---
 echoSection "Prepare Workspace"
 mkdir -p "$SOURCE_DIR"
@@ -176,7 +184,6 @@ mkdir -p "$TOOL_DIR"
 checkStatus $? "unable to create tool directory"
 mkdir -p "$TOOL_DIR/bin"
 mkdir -p "$TOOL_DIR/lib"
-# Create lib64 on Linux just in case, macOS doesn't typically use it
 if [ "$OS_NAME" = "Linux" ]; then
     mkdir -p "$TOOL_DIR/lib64"
 fi
@@ -185,8 +192,6 @@ mkdir -p "$TOOL_DIR/lib/pkgconfig"
 if [ "$OS_NAME" = "Linux" ]; then
     mkdir -p "$TOOL_DIR/lib64/pkgconfig"
 fi
-# Prepend TOOL_DIR/bin to PATH *after* potentially setting compiler paths
-# PATH="$TOOL_DIR/bin:$PATH" # Moved lower
 
 mkdir -p "$OUT_DIR"
 checkStatus $? "unable to create output directory"
@@ -201,16 +206,15 @@ echoSection "Setup Global Build Environment for OS: ${OS_NAME}"
 # --- Compiler Selection ---
 if [ "$OS_NAME" = "Darwin" ]; then
     echo "Using Clang (Xcode default)"
-    # CC, CXX etc. are usually set correctly by Xcode's environment
-    # Ensure command line tools are installed: xcode-select --install
-    # Explicitly setting might override Xcode defaults, use with caution if needed
-    # export CC=clang
-    # export CXX=clang++
-    # export AR=ar
-    # export NM=nm
-    # export RANLIB=ranlib
-    # export LD=ld
-else # Assuming Linux
+elif [ "$OS_WINDOWS" = "YES" ]; then
+    echo "Using GCC (MinGW-w64)"
+    export CC=gcc
+    export CXX=g++
+    export AR=ar
+    export NM=nm
+    export RANLIB=ranlib
+    export LD=ld
+else # Linux
     echo "Using GCC"
     export CC=gcc
     export CXX=g++
@@ -222,14 +226,11 @@ else # Assuming Linux
 fi
 
 # --- Environment Variables ---
-# Use -fPIC for shared object compatibility, especially on Linux
-# macOS often handles this differently (default behavior might be position-independent)
 PIC_FLAG=""
 if [ "$OS_NAME" = "Linux" ]; then
     PIC_FLAG="-fPIC"
 fi
 
-# Set environment variables globally for dependency builds
 echo "Exporting paths for build environment (${PIC_FLAG}):"
 echo "  Include Path: ${TOOL_DIR}/include"
 echo "  Library Path(s): ${TOOL_DIR}/lib" $([ "$OS_NAME" = "Linux" ] && echo "and ${TOOL_DIR}/lib64")
@@ -246,7 +247,7 @@ if [ "$OS_NAME" = "Linux" ]; then
     PKG_CONFIG_PATHS="$PKG_CONFIG_PATHS:${TOOL_DIR}/lib64/pkgconfig"
 fi
 export LDFLAGS="$LDFLAGS_PATHS"
-export PKG_CONFIG_PATH="${PKG_CONFIG_PATHS}:${PKG_CONFIG_PATH}" # Prepend custom paths
+export PKG_CONFIG_PATH="${PKG_CONFIG_PATHS}:${PKG_CONFIG_PATH}"
 
 # Prepend TOOL_DIR/bin to PATH now
 export PATH="$TOOL_DIR/bin:$PATH"
@@ -257,14 +258,6 @@ echo "CXXFLAGS=${CXXFLAGS}"
 echo "LDFLAGS=${LDFLAGS}"
 echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
 echo "PATH=${PATH}"
-
-
-# --- Force Rebuild Logic ---
-if [ "$FORCE_REBUILD" = "YES" ]; then
-    echoSection "Forcing rebuild, relevant target files will be ignored/overwritten"
-    # Cleaning source dirs handled by run_build function
-fi
-
 
 # --- Detect CPU Threads ---
 CPUS=1
@@ -280,7 +273,6 @@ else
             CPUS=$CPUS_SYSCTL
         fi
     fi
-    # Fallback if still not found
     if [ "$CPUS" -le 0 ]; then CPUS=1; fi
 fi
 echo "Using ${CPUS} cpu threads"
@@ -292,43 +284,33 @@ FFMPEG_LIB_FLAGS=""
 REQUIRES_GPL="NO"
 REQUIRES_NON_FREE="NO"
 
-# --- Build Dependencies ---
-
-# Function to wrap build calls with skip logic (checking lib & lib64) and source cleaning
-# Usage: run_build <libname> <script_name> <target_check_filename> <source_subdir> <ffmpeg_flag> <is_gpl> <is_nonfree> [extra_args...]
-# target_check_filename: Can be libfoo.a, libfoo.so, bin/foo, or just foo if installed to bin
 run_build() {
     local libname=$1
     local script_name=$2
-    local target_check_filename=$3 # e.g., libz.a or nasm or pkg-config or libSDL2.dylib
-    local source_subdir=$4         # e.g., zlib or nasm
+    local target_check_filename=$3
+    local source_subdir=$4
     local ffmpeg_flag=$5
     local is_gpl=$6
     local is_nonfree=$7
-    shift 7 # Remove first 7 args, rest are extra_args for build script
+    shift 7
     local extra_args=("$@")
 
-    # Determine potential paths based on target filename convention
     local target_path_lib="$TOOL_DIR/lib/$target_check_filename"
     local target_path_lib64=""
     if [ "$OS_NAME" = "Linux" ]; then
         target_path_lib64="$TOOL_DIR/lib64/$target_check_filename"
     fi
     local target_path_bin="$TOOL_DIR/bin/$target_check_filename"
-    local target_path_include="$TOOL_DIR/include/$target_check_filename" # For headers like decklink
+    local target_path_include="$TOOL_DIR/include/$target_check_filename"
 
-    # Determine which path(s) to check primarily
     local check_paths=()
     local found_path=""
-    # Check bin first for tools
     if [[ "$libname" == "nasm" || "$libname" == "cmake" || "$libname" == "ninja" || "$libname" == "pkg-config" ]]; then
         check_paths+=("$target_path_bin")
     fi
-    # Check include for Decklink header
     if [[ "$libname" == "decklink" ]]; then
         check_paths+=("$TOOL_DIR/include/DeckLinkAPI.h")
     fi
-     # Check lib and potentially lib64 for libraries (.a, .so, .dylib)
     if [[ "$target_check_filename" == *.a || "$target_check_filename" == *.so || "$target_check_filename" == *.dylib ]]; then
          check_paths+=("$target_path_lib")
          if [ -n "$target_path_lib64" ]; then
@@ -336,7 +318,6 @@ run_build() {
          fi
     fi
 
-    # If no paths determined yet, assume it's a library and check lib/lib64
     if [ ${#check_paths[@]} -eq 0 ] && [ -n "$target_check_filename" ]; then
          check_paths+=("$target_path_lib")
          if [ -n "$target_path_lib64" ]; then
@@ -347,41 +328,36 @@ run_build() {
     local source_path="$SOURCE_DIR/$source_subdir"
     local skip_flag_var="SKIP_$(echo "$libname" | tr '[:lower:]-' '[:upper:]_')"
 
-    # --- Check if explicitly skipped by user ---
     if [ "$(eval echo "\$$skip_flag_var")" = "YES" ]; then
-        echoSection "Skip $libname (user request)"
-        # Create skip file for test script compatibility
+        echoSection "Skip $libname (user request/platform default)"
         echo "YES" > "$LOG_DIR/skip-$libname"
         return
     fi
 
-    # --- Determine if build is needed ---
-    local build_needed="YES" # Default to build unless found
+    local build_needed="YES"
     if [ "$FORCE_REBUILD" = "YES" ]; then
         echo "Force rebuild requested for $libname."
         build_needed="YES"
     elif [ ${#check_paths[@]} -gt 0 ]; then
-        build_needed="YES" # Assume not found initially
+        build_needed="YES"
         for check_path in "${check_paths[@]}"; do
             echo "DEBUG: Checking for $libname artifact at: $check_path"
-            if [ -e "$check_path" ]; then # Check for file/dir/symlink existence
+            if [ -e "$check_path" ]; then
                 echo "DEBUG: Found artifact: $check_path"
                 found_path="$check_path"
                 build_needed="NO"
-                break # Found it
+                break
             fi
         done
         if [ "$build_needed" = "YES" ]; then
-             echo "Target artifact not found for $libname in expected locations: ${check_paths[*]}. Building."
+             echo "Target artifact not found for $libname in expected locations. Building."
         fi
     else
         echo "DEBUG: No target check file specified for $libname, or couldn't determine check paths. Building."
         build_needed="YES"
     fi
 
-    # --- Perform Build if Needed ---
     if [ "$build_needed" = "YES" ]; then
-        # Clean source directory first
         if [ -d "$source_path" ]; then
             echo "Cleaning source directory: $source_path"
             rm -rf "$source_path"
@@ -390,21 +366,17 @@ run_build() {
 
         START_TIME=$(currentTimeInSeconds)
         echoSection "Compile $libname"
-        # Run the build script, passing OS_NAME might be useful for some scripts
-        # "$SCRIPT_DIR/$script_name.sh" "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$CPUS" "$OS_NAME" "${extra_args[@]}" > "$LOG_DIR/${script_name}.log" 2>&1
-        # Simpler approach: Let scripts detect OS via uname
         "$SCRIPT_DIR/$script_name.sh" "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$CPUS" "${extra_args[@]}" > "$LOG_DIR/${script_name}.log" 2>&1
         BUILD_EXIT_CODE=$?
         if [ $BUILD_EXIT_CODE -ne 0 ]; then
             echo "ERROR: Build $libname failed. Check log $LOG_DIR/${script_name}.log"
-            cat "$LOG_DIR/${script_name}.log" # Print log on failure
+            cat "$LOG_DIR/${script_name}.log"
             exit 1
         fi
 
-        # Verify target file was created after build (if specified)
         local verify_ok="NO"
         if [ ${#check_paths[@]} -eq 0 ]; then
-            verify_ok="YES" # No file to check, assume OK if build didn't fail
+            verify_ok="YES"
         else
             for check_path in "${check_paths[@]}"; do
                 if [ -e "$check_path" ]; then
@@ -423,9 +395,8 @@ run_build() {
         echoDurationInSections $START_TIME
     else
         echoSection "Skipping $libname (already built - found $found_path)"
-    fi # End build_needed check
+    fi
 
-    # --- Update FFmpeg Flags (only if NOT skipped by user) ---
     if [ -n "$ffmpeg_flag" ]; then
         FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS $ffmpeg_flag"
     fi
@@ -435,25 +406,14 @@ run_build() {
     if [ "$is_nonfree" = "YES" ]; then
         REQUIRES_NON_FREE="YES"
     fi
-    # Create skip file for test script compatibility
     echo "NO" > "$LOG_DIR/skip-$libname"
-
-} # End run_build function definition
-
+}
 
 # --- Build Tools & Foundational Libs ---
-# Target filename conventions:
-# - Tools: Executable name (e.g., "nasm") -> check bin/
-# - Libraries: Static (.a) or Shared (.so/.dylib) -> check lib/ and maybe lib64/
-# Note: FFmpeg prefers static libs, but the script builds shared FFmpeg.
-# The build scripts for dependencies *should* build static libs (.a) for linking into FFmpeg's shared libs.
-# macOS uses .dylib for shared, Linux uses .so. We primarily check for .a as that's what FFmpeg links against.
-
-# Usage: run_build <libname> <script_name> <target_check_filename> <source_subdir> <ffmpeg_flag> <is_gpl> <is_nonfree> [extra_args...]
 run_build "nasm" "build-nasm" "nasm" "nasm" "" "NO" "NO"
 run_build "pkg-config" "build-pkg-config" "pkg-config" "pkg-config" "" "NO" "NO" "$TOOL_DIR"
 run_build "zlib" "build-zlib" "libz.a" "zlib" "--enable-zlib" "NO" "NO"
-run_build "openssl" "build-openssl" "libssl.a" "openssl" "--enable-openssl" "NO" "NO" # FFmpeg links ssl & crypto
+run_build "openssl" "build-openssl" "libssl.a" "openssl" "--enable-openssl" "NO" "NO"
 run_build "cmake" "build-cmake" "cmake" "cmake" "" "NO" "NO"
 run_build "ninja" "build-ninja" "ninja" "ninja" "" "NO" "NO"
 run_build "libxml2" "build-libxml2" "libxml2.a" "libxml2" "--enable-libxml2" "NO" "NO"
@@ -466,16 +426,14 @@ run_build "harfbuzz" "build-harfbuzz" "libharfbuzz.a" "harfbuzz" "--enable-libha
 run_build "libass" "build-libass" "libass.a" "libass" "--enable-libass" "NO" "NO"
 
 # --- Other Libraries ---
-SDL_TARGET="libSDL2.a" # Check for static lib
-# SDL might install shared lib too, but FFmpeg needs static link for this build type
-# if [ "$OS_NAME" = "Darwin" ]; then SDL_TARGET="libSDL2.dylib"; else SDL_TARGET="libSDL2.so"; fi
-run_build "sdl" "build-sdl" "$SDL_TARGET" "sdl" "" "NO" "NO" # Needed for ffplay
+SDL_TARGET="libSDL2.a"
+run_build "sdl" "build-sdl" "$SDL_TARGET" "sdl" "" "NO" "NO"
 run_build "libbluray" "build-libbluray" "libbluray.a" "libbluray" "--enable-libbluray" "NO" "NO"
 run_build "snappy" "build-snappy" "libsnappy.a" "snappy" "--enable-libsnappy" "NO" "NO"
 run_build "srt" "build-srt" "libsrt.a" "srt" "--enable-libsrt" "NO" "NO"
 run_build "libvmaf" "build-libvmaf" "libvmaf.a" "libvmaf" "--enable-libvmaf" "NO" "NO"
 run_build "libklvanc" "build-libklvanc" "libklvanc.a" "libklvanc" "--enable-libklvanc" "NO" "NO"
-run_build "libogg" "build-libogg" "libogg.a" "libogg" "" "NO" "NO" # Dependency for vorbis/theora
+run_build "libogg" "build-libogg" "libogg.a" "libogg" "" "NO" "NO"
 run_build "zimg" "build-zimg" "libzimg.a" "zimg" "--enable-libzimg" "NO" "NO"
 run_build "zvbi" "build-zvbi" "libzvbi.a" "zvbi" "--enable-libzvbi" "NO" "NO"
 run_build "whisper" "build-whisper" "libwhisper.a" "whispercpp" "--enable-whisper" "NO" "NO"
@@ -490,34 +448,29 @@ run_build "svt-av1" "build-svt-av1" "libSvtAv1Enc.a" "svt-av1" "--enable-libsvta
 run_build "vpx" "build-vpx" "libvpx.a" "vpx" "--enable-libvpx" "NO" "NO"
 run_build "libwebp" "build-libwebp" "libwebp.a" "libwebp" "--enable-libwebp" "NO" "NO"
 run_build "x264" "build-x264" "libx264.a" "x264" "--enable-libx264" "YES" "NO"
-run_build "x265" "build-x265" "libx265.a" "x265" "--enable-libx265" "YES" "NO" "$SKIP_X265_MULTIBIT" # Pass extra arg
+run_build "x265" "build-x265" "libx265.a" "x265" "--enable-libx265" "YES" "NO" "$SKIP_X265_MULTIBIT"
 run_build "vvenc" "build-vvenc" "libvvenc.a" "vvenc" "--enable-libvvenc" "NO" "NO"
 run_build "vvdec" "build-vvdec" "libvvdec.a" "vvdec" "--enable-libvvdec" "NO" "NO"
 
 # --- Audio Codecs ---
 run_build "soxr" "build-soxr" "libsoxr.a" "soxr" "--enable-libsoxr" "NO" "NO"
-
 run_build "lame" "build-lame" "libmp3lame.a" "lame" "--enable-libmp3lame" "NO" "NO"
 run_build "opus" "build-opus" "libopus.a" "opus" "--enable-libopus" "NO" "NO"
 run_build "fdk-aac" "build-fdk-aac" "libfdk-aac.a" "fdk-aac" "--enable-libfdk-aac" "NO" "YES"
 run_build "libvorbis" "build-libvorbis" "libvorbis.a" "libvorbis" "--enable-libvorbis" "NO" "NO"
-run_build "libtheora" "build-libtheora" "libtheora.a" "libtheora" "--enable-libtheora" "NO" "NO" # Depends on libvorbis
+run_build "libtheora" "build-libtheora" "libtheora.a" "libtheora" "--enable-libtheora" "NO" "NO"
 
 # --- Special: Decklink ---
-# Keep Decklink separate as it uses SDK path and checks include dir
 if [ "$SKIP_DECKLINK" = "NO" ]; then
     if [ -z "$DECKLINK_SDK" ]; then
         echo "ERROR: Decklink build requested but -DECKLINK_SDK=/path/to/sdk/include not provided."
         exit 1
     fi
     run_build "decklink" "build-decklink" "DeckLinkAPI.h" "" "--enable-decklink" "NO" "YES" "$DECKLINK_SDK"
-    # Note: The run_build call above handles the check/build/flag logic
-    # We removed the redundant checks/logic from the original Linux script here.
 else
     echoSection "Skip Decklink SDK (user request)"
     echo "YES" > "$LOG_DIR/skip-decklink"
 fi
-
 
 # --- Final FFmpeg Configuration Flags ---
 echoSection "Check additional build flags"
@@ -529,8 +482,8 @@ if [ "$REQUIRES_NON_FREE" = "YES" ]; then
     FFMPEG_LIB_FLAGS="--enable-nonfree $FFMPEG_LIB_FLAGS"
     echo "Requires non-free build flag"
 fi
-FFMPEG_LIB_FLAGS="--enable-version3 $FFMPEG_LIB_FLAGS" # Enable GPL/LGPL v3 features
-FFMPEG_LIB_FLAGS="--enable-demuxer=dash $FFMPEG_LIB_FLAGS" # Explicitly enable dash
+FFMPEG_LIB_FLAGS="--enable-version3 $FFMPEG_LIB_FLAGS"
+FFMPEG_LIB_FLAGS="--enable-demuxer=dash $FFMPEG_LIB_FLAGS"
 
 # Add OS specific hardware acceleration flags
 if [ "$OS_NAME" = "Darwin" ]; then
@@ -538,18 +491,15 @@ if [ "$OS_NAME" = "Darwin" ]; then
     FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-videotoolbox --enable-audiotoolbox"
 elif [ "$OS_NAME" = "Linux" ]; then
     echo "Adding Linux specific flags: --enable-vaapi --enable-vulkan"
-    # 开启 VAAPI 和 Vulkan 硬件加速
-    # 附带开启 libdrm (常用于Linux硬解的数据流转)
     FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-vaapi --enable-vulkan --enable-libdrm"
 elif [ "$OS_WINDOWS" = "YES" ]; then
     echo "Adding Windows specific HWAccel libraries..."
-    # 调用你刚刚新增的那三个脚本
     run_build "ffnvcodec" "build-ffnvcodec" "lib/pkgconfig/ffnvcodec.pc" "ffnvcodec" "--enable-ffnvcodec --enable-nvdec --enable-nvenc --enable-cuvid" "NO" "NO"
     run_build "amf" "build-amf" "include/AMF/core/VulkanAMF.h" "amf" "--enable-amf" "NO" "NO"
     run_build "vpl" "build-vpl" "lib/libvpl.a" "vpl" "--enable-libvpl" "NO" "NO"
     
-    # 开启 Windows 系统原生的 DXVA2、D3D11 和 AMF 所需的 MediaFoundation
-    EXTRA_FLAGS="$EXTRA_FLAGS --enable-d3d11va --enable-dxva2 --enable-mediafoundation"
+    # 【已修正】拼写错误修复，正确注入至 FFMPEG_LIB_FLAGS
+    FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-d3d11va --enable-dxva2 --enable-mediafoundation"
 fi
 
 
@@ -557,7 +507,6 @@ fi
 START_TIME=$(currentTimeInSeconds)
 echoSection "Compile FFmpeg"
 FFMPEG_SOURCE_PATH="$SOURCE_DIR/ffmpeg"
-# Clean FFmpeg source if forcing rebuild OR if PGO is enabled (as PGO involves multiple configure/make steps)
 if [ "$FORCE_REBUILD" = "YES" ] || [ "$ENABLE_FFMPEG_PGO" = "YES" ]; then
     if [ -d "$FFMPEG_SOURCE_PATH" ]; then
         echo "Cleaning FFmpeg source directory: $FFMPEG_SOURCE_PATH"
@@ -565,8 +514,7 @@ if [ "$FORCE_REBUILD" = "YES" ] || [ "$ENABLE_FFMPEG_PGO" = "YES" ]; then
         checkStatus $? "Failed to clean FFmpeg source directory"
     fi
 fi
-# Pass OS_NAME to ffmpeg build script if it needs internal logic, otherwise it can use uname
-# Passing ENABLE_FFMPEG_PGO to control PGO steps inside build-ffmpeg.sh
+
 "$SCRIPT_DIR/build-ffmpeg.sh" "$SCRIPT_DIR" "$SOURCE_DIR" "$TOOL_DIR" "$OUT_DIR" "$CPUS" \
     "$FFMPEG_SNAPSHOT" "$SKIP_VVDEC" "$FFMPEG_LIB_FLAGS" "$ENABLE_FFMPEG_PGO" "$OS_NAME" > "$LOG_DIR/build-ffmpeg.log" 2>&1
 checkStatus $? "build ffmpeg failed. Check $LOG_DIR/build-ffmpeg.log and potentially $SOURCE_DIR/ffmpeg/ffbuild/config.log"
@@ -580,7 +528,7 @@ echoDurationInSections $COMPILATION_START_TIME
 if [ "$OS_NAME" = "Darwin" ]; then
     echoSection "Relocate dylibs (macOS)"
     START_TIME=$(currentTimeInSeconds)
-    relocateDylib # Function defined in functions.sh (needs merging)
+    relocateDylib
     checkStatus $? "relocating dylibs failed"
     echoDurationInSections $START_TIME
 fi
@@ -606,12 +554,12 @@ if [ "$SKIP_BUNDLE" = "NO" ]; then
             BUNDLE_FILENAME="ffmpeg-build-macos.zip"
             BUNDLE_CMD="zip -9 -r"
             echo "Archiving contents of $OUT_DIR to $BUNDLE_FILENAME..."
-            (cd "$OUT_DIR" && $BUNDLE_CMD "$WORKING_DIR/$BUNDLE_FILENAME" .) # Use . to include hidden files if any
+            (cd "$OUT_DIR" && $BUNDLE_CMD "$WORKING_DIR/$BUNDLE_FILENAME" .)
         else # Linux
             BUNDLE_FILENAME="ffmpeg-build-linux.tar.gz"
             BUNDLE_CMD="tar -czf"
             echo "Archiving non-hidden contents of $OUT_DIR to $BUNDLE_FILENAME using subshell..."
-            (cd "$OUT_DIR" && $BUNDLE_CMD "$WORKING_DIR/$BUNDLE_FILENAME" *) # Use * for non-hidden
+            (cd "$OUT_DIR" && $BUNDLE_CMD "$WORKING_DIR/$BUNDLE_FILENAME" *)
         fi
 
         checkStatus $? "bundling failed"
@@ -635,8 +583,6 @@ if [ "$SKIP_TEST" = "NO" ]; then
          TEST_STATUS=$?
          if [ $TEST_STATUS -ne 0 ]; then
             echo "WARNING: Test failed (Exit Code: $TEST_STATUS). Check $LOG_DIR/test.log and $TEST_OUT_DIR/*.log"
-            # Decide whether to exit or continue despite test failure
-            # exit 1 # Uncomment to make test failures block completion
         else
             echo "Tests executed successfully"
         fi
