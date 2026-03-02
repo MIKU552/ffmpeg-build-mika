@@ -48,6 +48,7 @@ SKIP_LIBKLVANC="NO"
 SKIP_DECKLINK="YES"
 SKIP_VVDEC="NO"
 SKIP_VVENC="NO"
+SKIP_FDK_AAC="NO"
 # Tool skips
 SKIP_NASM="NO"
 SKIP_PKG_CONFIG="YES"
@@ -102,6 +103,7 @@ for arg in "$@"; do
         -SKIP_DECKLINK) SKIP_DECKLINK=$VALUE; echo "skip decklink $VALUE";;
         -SKIP_VVDEC) SKIP_VVDEC=$VALUE; echo "skip vvdec $VALUE";;
         -SKIP_VVENC) SKIP_VVENC=$VALUE; echo "skip vvenc $VALUE";;
+        -SKIP_FDK_AAC) SKIP_FDK_AAC=$VALUE; echo "skip fdk-aac $VALUE";;
         -SKIP_NASM) SKIP_NASM=$VALUE; echo "skip nasm $VALUE";;
         -SKIP_PKG_CONFIG) SKIP_PKG_CONFIG=$VALUE; echo "skip pkg-config $VALUE";;
         -SKIP_ZLIB) SKIP_ZLIB=$VALUE; echo "skip zlib $VALUE";;
@@ -491,6 +493,7 @@ run_build "soxr" "build-soxr" "libsoxr.a" "soxr" "--enable-libsoxr" "NO" "NO"
 
 run_build "lame" "build-lame" "libmp3lame.a" "lame" "--enable-libmp3lame" "NO" "NO"
 run_build "opus" "build-opus" "libopus.a" "opus" "--enable-libopus" "NO" "NO"
+run_build "fdk-aac" "build-fdk-aac" "libfdk-aac.a" "fdk-aac" "--enable-libfdk-aac" "NO" "YES"
 run_build "libvorbis" "build-libvorbis" "libvorbis.a" "libvorbis" "--enable-libvorbis" "NO" "NO"
 run_build "libtheora" "build-libtheora" "libtheora.a" "libtheora" "--enable-libtheora" "NO" "NO" # Depends on libvorbis
 
