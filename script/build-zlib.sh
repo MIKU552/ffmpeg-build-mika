@@ -55,7 +55,7 @@ if [[ "$OS_NAME" == MINGW* ]] || [[ "$OS_NAME" == MSYS* ]]; then
     echo "run windows specific build"
 
     # windows build
-    make -j $CPUS -f win32/Makefile.gcc
+    make -j $CPUS -f win32/Makefile.gcc libz.a
     checkStatus $? "build failed"
 
     # install
