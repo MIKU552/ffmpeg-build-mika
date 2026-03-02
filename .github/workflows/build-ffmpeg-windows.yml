@@ -2,22 +2,23 @@ name: FFmpeg Build Windows CI
 
 on: 
   push:
-    branches: [ "MIXWINDOWSCI" ] # 绑定你的测试分支
+    branches: [ "windows-support" ]
   workflow_dispatch: 
 
 env:
   CARGO_C_VERSION: "0.10.20"
+  # 【修复1】指定 ccache 目录为当前工作区，完美解决 MSYS2 绝对路径导致的缓存失败
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
 
 jobs:
   build-windows:
-    runs-on: windows-2025 # 使用最新的 Windows Server 2025
+    runs-on: windows-2025
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      # 核心魔法：使用 MSYS2 构建类 Linux 编译环境 (带有 MinGW 编译器和包管理器)
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
         with:
@@ -33,8 +34,9 @@ jobs:
             mingw-w64-x86_64-ccache
             mingw-w64-x86_64-rust
 
-      - name: Cache Cargo (Windows)
-        uses: actions/cache@v4
+      # 【修复2】分离 Cargo 的 Restore 和 Save，防止编译失败时丢失缓存
+      - name: Restore Cargo Cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -45,7 +47,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-c-${{ env.CARGO_C_VERSION }}-
 
-      # 注意：在 MSYS2 环境下，所有的 run 必须加上 shell: msys2 {0}
       - name: Install cargo-c
         shell: msys2 {0}
         run: |
@@ -68,8 +69,8 @@ jobs:
       - name: Restore ccache
         uses: actions/cache/restore@v4
         with:
-          # Windows MSYS2 的用户目录对应 /home/runner/
-          path: C:\msys64\home\runner\.ccache
+          # 使用相对路径配合全局变量
+          path: .ccache
           key: ${{ runner.os }}-ccache-${{ github.sha }}-${{ github.run_attempt }}
           restore-keys: |
             ${{ runner.os }}-ccache-
@@ -77,7 +78,6 @@ jobs:
       - name: Run Build Script
         shell: msys2 {0}
         run: |
-          # 挂载 MSYS2 的 ccache
           export PATH="/mingw64/lib/ccache/bin:$PATH"
           ccache -M 2G
           
@@ -88,39 +88,55 @@ jobs:
           mkdir -p build && cd build
           ../build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
 
+      # 【修复2延续】确保即使前面的构建失败，Cargo 和 ccache 也一定会被保存
+      - name: Save Cargo Cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-c-${{ env.CARGO_C_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Save ccache
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: C:\msys64\home\runner\.ccache
+          path: .ccache
           key: ${{ runner.os }}-ccache-${{ github.sha }}-${{ github.run_attempt }}
+
+      # 【修复3】失败时自动上传 log 文件夹
+      - name: Upload Logs on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-build-logs-windows
+          path: build/log/
+          if-no-files-found: ignore
 
       - name: Prepare Windows Artifact
         shell: msys2 {0}
         if: success()
         run: |
-          # 在 Windows 下生成的是 ffmpeg.exe
           chmod -R 755 build/out/bin/
           
           RAW_VERSION=$(./build/out/bin/ffmpeg.exe -version | head -n1 | awk '{print $3}')
           FFMPEG_VERSION=$(echo "$RAW_VERSION" | sed 's/-MiKayule.*//')
           
-          # 直接打包 bin 目录 (里面包含了干净独立的 .exe)
           NEW_ZIP_NAME="ffmpeg-${FFMPEG_VERSION}-windows-x86_64-mingw.zip"
-          cd build/out/bin
-          zip -r "../../${NEW_ZIP_NAME}" ./*
-          cd ../../..
+          mv build/ffmpeg-build*.zip "build/${NEW_ZIP_NAME}"
           
           echo "ZIP_NAME=${NEW_ZIP_NAME}" >> $GITHUB_ENV
           echo "FFMPEG_VERSION=$FFMPEG_VERSION" >> $GITHUB_ENV
 
-          # 生成 Markdown
           export TZ='Asia/Shanghai'
           CURRENT_TIME=$(date +'%Y-%m-%dT%H:%M:%S+08:00')
           NOTES_FILE="release_notes.md"
           
           echo "### ~~最新最热的 FFmpeg~~" > $NOTES_FILE
-          echo "编译于 \`${CURRENT_TIME}\`。这是 Windows 专属单文件纯静态编译版 (.exe)。" >> $NOTES_FILE
+          echo "编译于 \`${CURRENT_TIME}\`。这是 Windows 专属全量纯静态编译版。" >> $NOTES_FILE
           echo "已集成 NVIDIA (NVENC/NVDEC)、AMD (AMF) 和 Intel (QSV/VPL) 全平台硬件加速！" >> $NOTES_FILE
           echo "" >> $NOTES_FILE
           echo "### Compiled Component Versions" >> $NOTES_FILE
