@@ -1,19 +1,7 @@
 #!/bin/bash
 
 # build-libklvanc.sh
-# Copyright 2023 Martin Riedl & Modified for Windows Compatibility
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# 修复了 autogen 参数错误和 Windows 头文件缺失问题
 
 # handle arguments
 echo "arguments: $@"
@@ -54,26 +42,29 @@ cd "libklvanc-vid.obe.$VERSION/"
 checkStatus $? "change directory failed"
 
 # =========================================================
-# 【修复】Windows MinGW 环境下缺少 sys/errno.h 的兼容性补丁
+# 【关键修复 1】Windows MinGW 环境下缺少 sys/errno.h 的兼容性补丁
 # 原因：MinGW 使用标准的 <errno.h>，没有 POSIX 的 <sys/errno.h>
-# 修复：在子脚本内重新检测 OS，确保补丁一定会被执行
 # =========================================================
 OS_DETECT=$(uname -s)
 if [[ "$OS_DETECT" == MINGW* ]] || [[ "$OS_DETECT" == MSYS* ]]; then
     echo "Creating compatibility patch: replacing <sys/errno.h> with <errno.h>"
-    # 使用 sed 批量替换头文件引用
+    # 批量替换源码中的头文件引用
     sed -i 's|<sys/errno.h>|<errno.h>|g' src/libklvanc/vanc.h
     checkStatus $? "sed patch failed"
 fi
 # =========================================================
 
 # prepare build
-# 使用 --build-noconfigure 避免 autogen 自动运行 configure (我们下面自己配参数跑)
-./autogen.sh --build-noconfigure
-checkStatus $? "autogen failed"
+echo "Running autoreconf..."
+# 【关键修复 2】直接调用 autoreconf，不传任何多余参数
+# -f: force (强制重新生成)
+# -i: install (安装缺失的辅助文件)
+# -v: verbose (显示详细信息)
+autoreconf -fiv
+checkStatus $? "autoreconf failed"
 
 # configure
-# 显式禁用 shared 库，确保生成静态库 libklvanc.a
+# 显式禁用 shared，启用 static，确保生成静态库
 ./configure --prefix="$TOOL_DIR" --enable-shared=no --enable-static=yes
 checkStatus $? "configuration failed"
 
