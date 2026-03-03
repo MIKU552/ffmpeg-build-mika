@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Copyright 2023 Martin Riedl
+# build-libklvanc.sh
+# Copyright 2023 Martin Riedl & Modified for Windows Compatibility
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +23,12 @@ TOOL_DIR=$3
 CPUS=$4
 
 # load functions
-. $SCRIPT_DIR/functions.sh
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
 # load version
 VERSION=$(cat "$SCRIPT_DIR/../version/libklvanc")
@@ -32,7 +38,7 @@ echo "version: $VERSION"
 # start in working directory
 cd "$SOURCE_DIR"
 checkStatus $? "change directory failed"
-mkdir "libklvanc"
+mkdir -p "libklvanc"
 checkStatus $? "create directory failed"
 cd "libklvanc/"
 checkStatus $? "change directory failed"
@@ -49,18 +55,26 @@ checkStatus $? "change directory failed"
 
 # =========================================================
 # 【修复】Windows MinGW 环境下缺少 sys/errno.h 的兼容性补丁
-# 将 <sys/errno.h> 替换为标准的 <errno.h>
+# 原因：MinGW 使用标准的 <errno.h>，没有 POSIX 的 <sys/errno.h>
+# 修复：在子脚本内重新检测 OS，确保补丁一定会被执行
 # =========================================================
-if [[ "$OS_WINDOWS" == "YES" ]]; then
-    echo "Applying patch for Windows compatibility (sys/errno.h -> errno.h)..."
+OS_DETECT=$(uname -s)
+if [[ "$OS_DETECT" == MINGW* ]] || [[ "$OS_DETECT" == MSYS* ]]; then
+    echo "Creating compatibility patch: replacing <sys/errno.h> with <errno.h>"
+    # 使用 sed 批量替换头文件引用
     sed -i 's|<sys/errno.h>|<errno.h>|g' src/libklvanc/vanc.h
+    checkStatus $? "sed patch failed"
 fi
 # =========================================================
 
 # prepare build
-./autogen.sh --build
+# 使用 --build-noconfigure 避免 autogen 自动运行 configure (我们下面自己配参数跑)
+./autogen.sh --build-noconfigure
 checkStatus $? "autogen failed"
-./configure --prefix="$TOOL_DIR" --enable-shared=no
+
+# configure
+# 显式禁用 shared 库，确保生成静态库 libklvanc.a
+./configure --prefix="$TOOL_DIR" --enable-shared=no --enable-static=yes
 checkStatus $? "configuration failed"
 
 # build
