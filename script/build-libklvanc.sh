@@ -47,6 +47,16 @@ checkStatus $? "unpack failed"
 cd "libklvanc-vid.obe.$VERSION/"
 checkStatus $? "change directory failed"
 
+# =========================================================
+# 【修复】Windows MinGW 环境下缺少 sys/errno.h 的兼容性补丁
+# 将 <sys/errno.h> 替换为标准的 <errno.h>
+# =========================================================
+if [[ "$OS_WINDOWS" == "YES" ]]; then
+    echo "Applying patch for Windows compatibility (sys/errno.h -> errno.h)..."
+    sed -i 's|<sys/errno.h>|<errno.h>|g' src/libklvanc/vanc.h
+fi
+# =========================================================
+
 # prepare build
 ./autogen.sh --build
 checkStatus $? "autogen failed"
