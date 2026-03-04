@@ -1,146 +1,162 @@
 #!/bin/bash
 
-# Copyright 2022 Martin Riedl
-# Copyright 2024 Hayden Zheng
-# Merged for Linux & macOS compatibility - Reverted macOS logic based on original working script
-
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# ==============================================================================
+# Build Script for SVT-AV1 (Scalable Video Technology for AV1)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Features:
+#   - Supports building from specific Git Commit Hash or Release Tag
+#   - Automated PGO (Profile-Guided Optimization)
+#   - Cross-platform patching (Linux/macOS)
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions (including run_sed)
-# shellcheck source=/dev/null
-. "$SCRIPT_DIR/functions.sh"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# --- OS Detection ---
-OS_NAME=$(uname)
+echoSection "Building SVT-AV1"
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/svt-av1")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+# 2. Load Commit Hash / Version
+# The file 'version/svt-av1' should contain the full Commit Hash or Tag (e.g., v1.8.0)
+VERSION_FILE="$SCRIPT_DIR/../version/svt-av1"
+if [ -f "$VERSION_FILE" ]; then
+    COMMIT_ID=$(cat "$VERSION_FILE")
+    # Trim whitespace just in case
+    COMMIT_ID=$(echo "$COMMIT_ID" | xargs)
+else
+    echo "Error: Version file not found at $VERSION_FILE"
+    exit 1
+fi
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir -p "svt-av1" # Use -p
-cd "svt-av1/"
-checkStatus $? "change directory failed"
+echo "Target Commit/Tag: $COMMIT_ID"
 
-# download source
-SVT_TARBALL="SVT-AV1-$VERSION.tar.gz"
-SVT_UNPACK_DIR="SVT-AV1-$VERSION"
-# Consider adding proxy if needed: https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/$VERSION/$SVT_TARBALL
-download https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/$VERSION/$SVT_TARBALL "$SVT_TARBALL"
-checkStatus $? "download failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/svt-av1"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# unpack
-tar -zxf "$SVT_TARBALL"
-checkStatus $? "unpack failed"
-rm "$SVT_TARBALL" # Clean up
+# 3. Download Source
+# GitLab Archive URL pattern works for both tags and commit hashes:
+# https://gitlab.com/User/Project/-/archive/COMMIT_OR_TAG/Project-COMMIT_OR_TAG.tar.gz
+TARBALL="SVT-AV1-${COMMIT_ID}.tar.gz"
+URL="https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/${COMMIT_ID}/SVT-AV1-${COMMIT_ID}.tar.gz"
 
-# prepare build
-cd "$SVT_UNPACK_DIR/" # cd into unpacked dir first
-checkStatus $? "change directory failed"
+download "$URL" "$TARBALL"
 
-# OS-Specific sed patches
-LLVM_PROFDATA_CMD_CMAKE="" # CMake arg to specify llvm-profdata path
+# 4. Unpack
+# CRITICAL: We use --strip-components=1 because the top-level folder name 
+# inside the tarball changes based on the commit hash (e.g., SVT-AV1-a1b2c3d...).
+# This ensures files land directly in our $TARGET_SRC_DIR.
+tar -zxf "$TARBALL" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 5. Apply Patches for PGO Training
+# ------------------------------------------------------------------------------
+# We modify 'pgohelper.cmake' to allow piping compressed video (.y4m.xz) 
+# into the encoder, saving disk space during the PGO training phase.
+
+PGO_CMAKE_FILE="Build/pgohelper.cmake"
+echo "Patching $PGO_CMAKE_FILE for compressed training assets..."
+
+if [ -f "$PGO_CMAKE_FILE" ]; then
+    # 1. Update extension check from .y4m to .y4m.xz
+    # Using regex to match variations in spacing or quotes
+    run_sed 's/\.y4m/.y4m.xz/g' "$PGO_CMAKE_FILE"
+
+    # 2. Inject 'xz -dc |' pipe
+    # Finds the line executing SvtAv1EncApp and prepends the decompression command
+    # Matches: ${SvtAv1EncApp} -i ${video} ...
+    run_sed 's/\${SvtAv1EncApp} -i \${video}/xz -dc \${video} | \${SvtAv1EncApp} -i -/g' "$PGO_CMAKE_FILE"
+
+    # 3. Add --lookahead 120 (Recommended for PGO quality)
+    run_sed 's/--film-grain 8/--film-grain 8 --lookahead 120/g' "$PGO_CMAKE_FILE"
+    
+    # 4. Wrap command in 'sh -c' to support pipes
+    run_sed 's/\${ENCODING_COMMAND}/sh -c "\${ENCODING_COMMAND}"/g' "$PGO_CMAKE_FILE"
+    
+    checkStatus $? "Patching pgohelper.cmake failed"
+else
+    echo "Warning: $PGO_CMAKE_FILE not found. If you are on a very new commit, the file structure might have changed."
+fi
+
+# macOS Specific Configurations
+OS_NAME=$(uname -s)
+LLVM_PROFDATA_FLAG=""
 
 if [ "$OS_NAME" = "Darwin" ]; then
-    # --- macOS Specific Logic - Reverted to Original ---
-    echo "Applying original macOS sed patches..."
-    # WARNING: These sed commands rely on specific line numbers/patterns in the original files
-    # Patch pgohelper.cmake (Lines based on original script)
-    run_sed '36s/.y4m/.y4m.xz/g' Build/pgohelper.cmake
-    run_sed '43s/\${SvtAv1EncApp} -i \${video} -b "\${BUILD_DIRECTORY}\/\${videoname}.ivf" --preset 2 --film-grain 8 --tune 0/"xz -dc \${video} | \${SvtAv1EncApp} -i - -b \\"\${BUILD_DIRECTORY}\/\${videoname}.ivf\\" --preset 2 --film-grain 8 --tune 0 --lookahead 120"/g' Build/pgohelper.cmake
-    run_sed '49s/\${ENCODING_COMMAND}/sh -c "\${ENCODING_COMMAND}"/g' Build/pgohelper.cmake
-    checkStatus $? "Editing Build/pgohelper.cmake failed"
-
-    # Patch CMakeLists.txt (Line based on original script)
-    run_sed '280,281s/PGO_DIR}/PGO_DIR} -mllvm -vp-counters-per-site=2048/g' CMakeLists.txt
-    checkStatus $? "Editing CMakeLists.txt failed"
-
-    # Find llvm-profdata using xcode-select path (like original script)
-    XCODE_SELECT_PATH=$(xcode-select -p 2>/dev/null)
-    if [ -n "$XCODE_SELECT_PATH" ] && [ -x "$XCODE_SELECT_PATH/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata" ]; then
-        LLVM_PROFDATA_CMD_CMAKE="-DLLVM_PROFDATA=$XCODE_SELECT_PATH/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata"
-        echo "Found llvm-profdata via xcode-select."
+    echo "Applying macOS Clang PGO configurations..."
+    
+    # Patch CMakeLists.txt to increase PGO counters (prevents overflow on huge codebases)
+    if [ -f "CMakeLists.txt" ]; then
+        run_sed 's/PGO_DIR}/PGO_DIR} -mllvm -vp-counters-per-site=4096/g' CMakeLists.txt
+    fi
+    
+    # Locate llvm-profdata for merging profiles
+    if command -v llvm-profdata >/dev/null 2>&1; then
+        LLVM_PROFDATA_FLAG="-DLLVM_PROFDATA=$(command -v llvm-profdata)"
+        echo "Found llvm-profdata in PATH"
     else
-        # Fallback to searching PATH
-        if command -v llvm-profdata >/dev/null 2>&1; then
-            LLVM_PROFDATA_CMD_CMAKE="-DLLVM_PROFDATA=$(command -v llvm-profdata)"
-             echo "Found llvm-profdata in PATH."
+        # Fallback to Xcode path
+        XCODE_PATH=$(xcode-select -p 2>/dev/null)
+        if [ -n "$XCODE_PATH" ] && [ -x "$XCODE_PATH/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata" ]; then
+            LLVM_PROFDATA_FLAG="-DLLVM_PROFDATA=$XCODE_PATH/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata"
+            echo "Found llvm-profdata via Xcode"
         else
-            echo "WARNING: llvm-profdata not found via xcode-select or PATH. PGO might fail on macOS."
-            # Keep variable empty if not found
-            LLVM_PROFDATA_CMD_CMAKE=""
+            echo "Warning: llvm-profdata not found. PGO build might fail."
         fi
     fi
-    # --- End macOS Specific Logic ---
-else
-    # Linux specific patches (if any needed in the future)
-    echo "Applying Linux sed patches (if any)..."
-    # These are likely common needed patches
-    run_sed '36s/.y4m/.y4m.xz/g' Build/pgohelper.cmake
-    run_sed '43s/\${SvtAv1EncApp} -i \${video} -b "\${BUILD_DIRECTORY}\/\${videoname}.ivf" --preset 2 --film-grain 8 --tune 0/"xz -dc \${video} | \${SvtAv1EncApp} -i - -b \\"\${BUILD_DIRECTORY}\/\${videoname}.ivf\\" --preset 2 --film-grain 8 --tune 0 --lookahead 120"/g' Build/pgohelper.cmake
-    run_sed '49s/\${ENCODING_COMMAND}/sh -c "\${ENCODING_COMMAND}"/g' Build/pgohelper.cmake
 fi
 
+# 6. Configure & Build
+# ------------------------------------------------------------------------------
+mkdir -p build
+cd build || exit 1
 
-# Create build directory (common)
-mkdir -p "build"
-checkStatus $? "create build directory failed"
-cd "build/"
-checkStatus $? "change directory to build failed"
+echo "Configuring CMake..."
 
-echo "Configuring SVT-AV1..."
-# Use CMake configuration logic based on OS
-# Common flags
-CMAKE_COMMON_FLAGS="-DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR \
-      -DSVT_AV1_LTO=ON \
-      -DSVT_AV1_PGO=ON \
-      -DSVT_AV1_PGO_CUSTOM_VIDEOS=$SCRIPT_DIR/../sample \
-      -DBUILD_SHARED_LIBS=NO"
+# Notes:
+# - BUILD_SHARED_LIBS=OFF: Static linking is required for our FFmpeg build.
+# - SVT_AV1_PGO=ON: Enables the 'RunPGO' target.
+# - SVT_AV1_LTO=ON: Link Time Optimization for performance.
+# shellcheck disable=SC2086
+cmake \
+    -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DBUILD_APPS=OFF \
+    -DSVT_AV1_LTO=ON \
+    -DSVT_AV1_PGO=ON \
+    -DSVT_AV1_PGO_CUSTOM_VIDEOS="$SCRIPT_DIR/../sample" \
+    $LLVM_PROFDATA_FLAG \
+    ..
 
-if [ "$OS_NAME" = "Darwin" ]; then
-    # macOS: Add LLVM_PROFDATA flag if found, DO NOT set CMAKE_*_FLAGS explicitly
-    # shellcheck disable=SC2086
-    cmake ${CMAKE_COMMON_FLAGS} \
-          ${LLVM_PROFDATA_CMD_CMAKE} \
-          ..
-    checkStatus $? "macOS configuration failed"
-else
-    # Linux: Rely on -DSVT_AV1_PGO=ON for GCC PGO flags
-    # shellcheck disable=SC2086
-    cmake ${CMAKE_COMMON_FLAGS} \
-          ..
-    checkStatus $? "Linux configuration failed"
-fi
+checkStatus $? "CMake Configuration failed"
 
+# 7. Execute PGO Training
+# ------------------------------------------------------------------------------
+echoSection "Running PGO Training (make RunPGO)"
+echo "Compiling instrumented encoder -> Running training videos -> Compiling optimized encoder"
 
-# build PGO profile (Common command)
-echo "Running SVT-AV1 PGO Training..."
-make RunPGO -j $CPUS
-checkStatus $? "PGO build/training failed"
+make RunPGO -j "$CPUS"
+checkStatus $? "PGO Training failed"
 
-# Final install (Common command)
-echo "Installing SVT-AV1 (Optimized Build)..."
+# 8. Install
+# ------------------------------------------------------------------------------
+echoSection "Installing SVT-AV1"
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
 
-cd ../.. # Back to SOURCE_DIR/svt-av1
+echoSection "SVT-AV1 Build Complete"
