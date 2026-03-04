@@ -443,6 +443,11 @@ done
 COMPILATION_START_TIME=$(currentTimeInSeconds)
 
 # --- Group 1: Build Tools ---
+ARCH_NAME="$(uname -m)"
+if [[ "$ARCH_NAME" == "arm64" || "$ARCH_NAME" == "aarch64" ]]; then
+    echo "Detected ARM architecture ($ARCH_NAME). Skipping NASM (x86 assembler)."
+    SKIP_NASM="YES"
+fi
 run_build "nasm"       "build-nasm"       "nasm"       "nasm"       "" "NO" "NO"
 run_build "pkg-config" "build-pkg-config" "pkg-config" "pkg-config" "" "NO" "NO" "$TOOL_DIR"
 run_build "cmake"      "build-cmake"      "cmake"      "cmake"      "" "NO" "NO"
