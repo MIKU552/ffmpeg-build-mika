@@ -1,31 +1,46 @@
 name: FFmpeg Multi-Platform CI
 
-on: 
+# ==============================================================================
+# Triggers & Concurrency
+# ==============================================================================
+on:
   push:
     branches: [ "MIX" ]
   pull_request:
     branches: [ "MIX" ]
-  workflow_dispatch: 
+  workflow_dispatch:
 
+# ==============================================================================
+# Global Environment Variables
+# ==============================================================================
 env:
-  CARGO_C_VERSION: "0.10.20" # 全局统一管理 cargo-c 版本
+  CARGO_C_VERSION: "0.10.20"  # Global cargo-c version
+  RUST_TOOLCHAIN: "stable"    # Rust toolchain version
 
 jobs:
-  # ==========================================
-  # Job 1: Linux 编译任务
-  # ==========================================
+
+  # ============================================================================
+  # Job 1: Linux Build Task (Ubuntu)
+  # ============================================================================
   build-linux:
+    name: Build Linux (Ubuntu 24.04)
     runs-on: ubuntu-24.04
+    
     steps:
-      - name: Checkout repository
+      # --- 1. Checkout Code ---
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
+      # --- 2. Install Dependencies ---
       - name: Install System Dependencies
         run: |
+          # Add LunarG Vulkan SDK keys
           wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
           sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list http://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
+          
+          # Install packages
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential gcc g++ binutils make cmake ninja-build pkg-config \
@@ -35,10 +50,13 @@ jobs:
             gettext liblzma-dev libnuma-dev libssl-dev ccache \
             libva-dev libdrm-dev vulkan-sdk
 
-      - name: Install Rust
+      # --- 3. Rust Environment ---
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
-      - name: Cache Cargo
+      - name: Cache Cargo Registry
         uses: actions/cache@v4
         with:
           path: |
@@ -53,22 +71,25 @@ jobs:
       - name: Install cargo-c
         run: |
           set +e
-          HAS_CARGO_C=$(command -v cargo-cbuild)
-          if [ -n "$HAS_CARGO_C" ]; then
+          SKIP_INSTALL="false"
+
+          # Check if cargo-cbuild exists and matches version
+          if command -v cargo-cbuild >/dev/null 2>&1; then
             CURRENT_VERSION=$(cargo cbuild --version 2>/dev/null)
             if [[ "$CURRENT_VERSION" == *"${{ env.CARGO_C_VERSION }}"* ]]; then
-              echo "cargo-c v${{ env.CARGO_C_VERSION }} is already installed from cache, skipping!"
+              echo "✅ cargo-c v${{ env.CARGO_C_VERSION }} is already installed."
               SKIP_INSTALL="true"
             fi
           fi
           set -e
           
           if [ "$SKIP_INSTALL" != "true" ]; then
-            echo "Installing/Updating cargo-c to v${{ env.CARGO_C_VERSION }}..."
+            echo "🚀 Installing cargo-c v${{ env.CARGO_C_VERSION }}..."
             cargo install cargo-c --version ${{ env.CARGO_C_VERSION }} --locked --force
           fi
 
-      - name: Restore ccache
+      # --- 4. CCache Setup ---
+      - name: Restore CCache
         uses: actions/cache/restore@v4
         with:
           path: ~/.cache/ccache
@@ -76,37 +97,39 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-
 
+      # --- 5. Main Build Execution ---
       - name: Run Build Script
         run: |
+          # Configure CCache
           export PATH="/usr/lib/ccache:$PATH"
           ccache -M 600M
           
-          # 【新增】强制要求 CMake 生成的构建配置使用 ccache
+          # Force CMake to use ccache
           export CMAKE_C_COMPILER_LAUNCHER=ccache
           export CMAKE_CXX_COMPILER_LAUNCHER=ccache
           
-          echo "==== ccache stats before build ===="
+          echo "==== CCache Status (Before) ===="
           ccache -s
           
+          # Permission Fix & Execution
           chmod +x build.sh build_fix.sh script/*.sh
           mkdir -p build && cd build
+          
+          # Call the main build script
           ../build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
           
-          # 【新增】编译完成后打印缓存命中率
-          echo "==== ccache stats after build ===="
+          echo "==== CCache Status (After) ===="
           ccache -s
 
-      - name: Save ccache
+      - name: Save CCache
         if: always()
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/ccache
           key: ${{ runner.os }}-ccache-${{ github.sha }}-${{ github.run_attempt }}
-      
-      # ========================================================
-      # 【终极验证】全能组件列表生成器 (修复 fdk-aac 和 Git 版本问题)
-      # ========================================================
-      - name: Generate Verified Component List
+
+      # --- 6. Verification & Artifact Prep ---
+      - name: Generate Component Report
         if: success()
         run: |
           echo "### Verified Compiled Component Versions" > build/components.md
@@ -114,131 +137,106 @@ jobs:
           
           LIB_DIR="$(pwd)/build/tool/lib"
           
-          # 定义检查函数
+          # Helper function to check library existence
           check_lib() {
             local name=$1
             local version_file=$2
             local lib_pattern=$3
             
-            # 使用 find 进行模糊匹配，只要能找到符合 pattern 的 .a 文件就算成功
-            # 这样 libvorbis 可以匹配 libvorbis.a, libvorbisenc.a 等
+            # Fuzzy match using find to locate .a files
             if find "$LIB_DIR" -maxdepth 1 -name "$lib_pattern" -print -quit | grep -q .; then
+               local ver=$(cat "$version_file" 2>/dev/null || echo "git-latest")
                
-               #读取版本号
-               local ver=$(cat "$version_file")
-               
-               # 【处理 Git 版本】如果版本号为空，或者看起来像 Git Hash
-               if [ -z "$ver" ]; then
-                   ver="git-latest"
-               elif [[ "$ver" =~ ^[0-9a-f]{7,40}$ ]]; then
-                   # 如果是长 Hash，截取前 7 位显示更美观
+               # Handle git hashes (truncate if necessary)
+               if [[ "$ver" =~ ^[0-9a-f]{7,40}$ ]]; then
                    ver="git-$(echo $ver | cut -c1-7)"
                fi
                
                echo "* **$name**: \`$ver\`" >> build/components.md
-               echo "✅ Verified $name (Found $lib_pattern, Version: $ver)"
+               echo "✅ Verified $name ($ver)"
             else
-               echo "⚠️ Skipped $name (Artifact matching $lib_pattern not found in lib dir)"
+               echo "⚠️ Skipped $name"
             fi
           }
 
-          # 遍历 version 目录
+          # Iterate over version files in the repo
           for f in $(ls version/* | sort); do
-              if [ -f "$f" ]; then
-                  comp=$(basename "$f")
-                  
-                  # 过滤纯构建工具
-                  if [[ "$comp" =~ ^(cmake|meson|ninja|nasm|yasm|cargo-c|pkg-config)$ ]]; then continue; fi
-                  if [ "$comp" = "ffmpeg" ]; then continue; fi
+              [ -f "$f" ] || continue
+              comp=$(basename "$f")
+              
+              # Filter out build tools
+              [[ "$comp" =~ ^(cmake|meson|ninja|nasm|yasm|cargo-c|pkg-config|ffmpeg)$ ]] && continue
 
-                  # 【全面映射表】在这里补全所有可能的库名
-                  case "$comp" in
-                      # 音频库
-                      "fdk-aac")    PATTERN="libfdk-aac.a" ;;
-                      "lame")       PATTERN="libmp3lame.a" ;;
-                      "mp3lame")    PATTERN="libmp3lame.a" ;;
-                      "opus")       PATTERN="libopus.a" ;;
-                      "vorbis")     PATTERN="libvorbis.a" ;;
-                      "ogg")        PATTERN="libogg.a" ;;
-                      "theora")     PATTERN="libtheora.a" ;;
-                      "speex")      PATTERN="libspeex.a" ;;
-                      "twolame")    PATTERN="libtwolame.a" ;;
-                      "gsm")        PATTERN="libgsm.a" ;;
-                      "opencore-amr"*) PATTERN="libopencore-amr*.a" ;; # 通配符
-                      
-                      # 视频库
-                      "x264")       PATTERN="libx264.a" ;;
-                      "x265"*)      PATTERN="libx265.a" ;;
-                      "aom")        PATTERN="libaom.a" ;;
-                      "dav1d")      PATTERN="libdav1d.a" ;;
-                      "rav1e")      PATTERN="librav1e.a" ;;
-                      "svt-av1")    PATTERN="libSvtAv1Enc.a" ;;
-                      "vpx")        PATTERN="libvpx.a" ;;
-                      "vvenc")      PATTERN="libvvenc.a" ;;
-                      "vvdec")      PATTERN="libvvdec.a" ;;
-                      "kvazaar")    PATTERN="libkvazaar.a" ;;
-                      "openh264")   PATTERN="libopenh264.a" ;;
-                      "openjpeg")   PATTERN="libopenjp2.a" ;; # 注意这里是 libopenjp2
-                      "webp")       PATTERN="libwebp.a" ;;
-                      
-                      # 滤镜与特效
-                      "zimg")       PATTERN="libzimg.a" ;;
-                      "vmaf"*)      PATTERN="libvmaf.a" ;;
-                      "libass")     PATTERN="libass.a" ;;
-                      "freetype")   PATTERN="libfreetype.a" ;;
-                      "fribidi")    PATTERN="libfribidi.a" ;;
-                      "fontconfig") PATTERN="libfontconfig.a" ;;
-                      "harfbuzz")   PATTERN="libharfbuzz.a" ;;
-                      "placebo")    PATTERN="libplacebo.a" ;;
-                      "shaderc")    PATTERN="libshaderc_combined.a" ;; # shaderc 静态库名比较特殊
-                      "libklvanc")  PATTERN="libklvanc.a" ;;
-                      "zvbi")       PATTERN="libzvbi.a" ;;
-                      "arib"*)      PATTERN="libarib*.a" ;; # aribb24 等
-                      
-                      # 基础/传输库
-                      "zlib")       PATTERN="libz.a" ;;
-                      "openssl")    PATTERN="libssl.a" ;;
-                      "sdl")        PATTERN="libSDL2.a" ;;
-                      "gmp")        PATTERN="libgmp.a" ;;
-                      "gnutls")     PATTERN="libgnutls.a" ;;
-                      "xml2")       PATTERN="libxml2.a" ;;
-                      "libxml2")    PATTERN="libxml2.a" ;;
-                      "srt")        PATTERN="libsrt.a" ;;
-                      "zmq")        PATTERN="libzmq.a" ;;
-                      "snappy")     PATTERN="libsnappy.a" ;;
-                      "bluray")     PATTERN="libbluray.a" ;;
-                      "bzip2")      PATTERN="libbz2.a" ;;
-                      "iconv")      PATTERN="libiconv.a" ;;
-                      "lzma"|"xz")  PATTERN="liblzma.a" ;;
-                      "soxr")       PATTERN="libsoxr.a" ;;
-                      "vid.stab")   PATTERN="libvidstab.a" ;;
-                      
-                      # AI / 特殊 (针对你的 whisper 提问)
-                      "whisper")    PATTERN="libwhisper.a" ;; 
-                      
-                      # 默认兜底：尝试 libname.a
-                      *)            PATTERN="lib${comp}.a" ;; 
-                  esac
+              # Comprehensive mapping table for library names
+              case "$comp" in
+                  # Audio libraries
+                  "fdk-aac")    PATTERN="libfdk-aac.a" ;;
+                  "lame")       PATTERN="libmp3lame.a" ;;
+                  "opus")       PATTERN="libopus.a" ;;
+                  "vorbis")     PATTERN="libvorbis.a" ;;
+                  "ogg")        PATTERN="libogg.a" ;;
+                  "theora")     PATTERN="libtheora.a" ;;
+                  "soxr")       PATTERN="libsoxr.a" ;;
                   
-                  check_lib "$comp" "$f" "$PATTERN"
-              fi
+                  # Video libraries
+                  "x264")       PATTERN="libx264.a" ;;
+                  "x265"*)      PATTERN="libx265.a" ;;
+                  "aom")        PATTERN="libaom.a" ;;
+                  "dav1d")      PATTERN="libdav1d.a" ;;
+                  "rav1e")      PATTERN="librav1e.a" ;;
+                  "svt-av1")    PATTERN="libSvtAv1Enc.a" ;;
+                  "vpx")        PATTERN="libvpx.a" ;;
+                  "vvenc")      PATTERN="libvvenc.a" ;;
+                  "vvdec")      PATTERN="libvvdec.a" ;;
+                  "openh264")   PATTERN="libopenh264.a" ;;
+                  "openjpeg")   PATTERN="libopenjp2.a" ;;
+                  "webp")       PATTERN="libwebp.a" ;;
+                  
+                  # Filters & Effects
+                  "zimg")       PATTERN="libzimg.a" ;;
+                  "vmaf"*)      PATTERN="libvmaf.a" ;;
+                  "libass")     PATTERN="libass.a" ;;
+                  "freetype")   PATTERN="libfreetype.a" ;;
+                  "fribidi")    PATTERN="libfribidi.a" ;;
+                  "fontconfig") PATTERN="libfontconfig.a" ;;
+                  "harfbuzz")   PATTERN="libharfbuzz.a" ;;
+                  "zvbi")       PATTERN="libzvbi.a" ;;
+                  "libklvanc")  PATTERN="libklvanc.a" ;;
+                  
+                  # Base/Transport libraries
+                  "zlib")       PATTERN="libz.a" ;;
+                  "openssl")    PATTERN="libssl.a" ;;
+                  "sdl")        PATTERN="libSDL2.a" ;;
+                  "xml2")       PATTERN="libxml2.a" ;;
+                  "srt")        PATTERN="libsrt.a" ;;
+                  "snappy")     PATTERN="libsnappy.a" ;;
+                  "bluray")     PATTERN="libbluray.a" ;;
+                  
+                  # AI / Special libraries
+                  "whisper")    PATTERN="libwhisper.a" ;; 
+                  *)            PATTERN="lib${comp}.a" ;; 
+              esac
+              
+              check_lib "$comp" "$f" "$PATTERN"
           done
 
-      - name: Prepare Linux Artifact
+      - name: Package Artifacts
         if: success()
         run: |
+          # Set permissions
           chmod -R 755 build/out/bin/
           export LD_LIBRARY_PATH="$(pwd)/build/out/lib:$(pwd)/build/out/lib64:$LD_LIBRARY_PATH"
           
-          # 提取版本号并存入文本文件，供最后的 Release 任务读取
+          # Extract Version from binary
           RAW_VERSION=$(./build/out/bin/ffmpeg -version | head -n1 | awk '{print $3}')
           FFMPEG_VERSION=$(echo "$RAW_VERSION" | sed 's/-MiKayule.*//')
           echo "$FFMPEG_VERSION" > build/ffmpeg_version.txt
           
+          # Rename Tarball
           NEW_TAR_NAME="ffmpeg-${FFMPEG_VERSION}-linux-x86_64-gcc.tar.gz"
           mv build/ffmpeg-build*.tar.gz "build/${NEW_TAR_NAME}"
 
-      - name: Upload Linux Artifact
+      - name: Upload Linux Archive
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -246,9 +244,10 @@ jobs:
           path: |
             build/ffmpeg-*.tar.gz
             build/ffmpeg_version.txt
+            build/components.md
           if-no-files-found: error
 
-      - name: Upload Linux Logs on Failure
+      - name: Upload Logs (On Failure)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -257,26 +256,33 @@ jobs:
           if-no-files-found: ignore
 
 
-  # ==========================================
-  # Job 2: macOS 编译任务
-  # ==========================================
+  # ============================================================================
+  # Job 2: macOS Build Task
+  # ============================================================================
   build-macos:
-    runs-on: macos-26
+    name: Build macOS (ARM64)
+    runs-on: macos-26  # User defined runner version
+    
     steps:
-      - name: Checkout repository
+      # --- 1. Checkout Code ---
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
+      # --- 2. Install Dependencies ---
       - name: Install System Dependencies
         run: |
           brew update
           brew install automake libtool cmake ninja nasm pkg-config ccache wget xz
 
-      - name: Install Rust
+      # --- 3. Rust Environment ---
+      - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
-      - name: Cache Cargo
+      - name: Cache Cargo Registry
         uses: actions/cache@v4
         with:
           path: |
@@ -291,22 +297,25 @@ jobs:
       - name: Install cargo-c
         run: |
           set +e
-          HAS_CARGO_C=$(command -v cargo-cbuild)
-          if [ -n "$HAS_CARGO_C" ]; then
+          SKIP_INSTALL="false"
+
+          # Check if cargo-cbuild exists and matches version
+          if command -v cargo-cbuild >/dev/null 2>&1; then
             CURRENT_VERSION=$(cargo cbuild --version 2>/dev/null)
             if [[ "$CURRENT_VERSION" == *"${{ env.CARGO_C_VERSION }}"* ]]; then
-              echo "cargo-c v${{ env.CARGO_C_VERSION }} is already installed from cache, skipping!"
+              echo "✅ cargo-c v${{ env.CARGO_C_VERSION }} is already installed."
               SKIP_INSTALL="true"
             fi
           fi
           set -e
           
           if [ "$SKIP_INSTALL" != "true" ]; then
-            echo "Installing/Updating cargo-c to v${{ env.CARGO_C_VERSION }}..."
+            echo "🚀 Installing cargo-c v${{ env.CARGO_C_VERSION }}..."
             cargo install cargo-c --version ${{ env.CARGO_C_VERSION }} --locked --force
           fi
 
-      - name: Restore ccache
+      # --- 4. CCache Setup ---
+      - name: Restore CCache
         uses: actions/cache/restore@v4
         with:
           path: ~/Library/Caches/ccache
@@ -314,34 +323,35 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-
 
+      # --- 5. Main Build Execution ---
       - name: Run Build Script
         run: |
+          # Configure CCache for macOS (Brew path)
           export PATH="$(brew --prefix ccache)/libexec:$PATH"
           ccache -M 500M
-          
-          # 【新增】强制要求 CMake 生成的构建配置使用 ccache
           export CMAKE_C_COMPILER_LAUNCHER=ccache
           export CMAKE_CXX_COMPILER_LAUNCHER=ccache
           
-          echo "==== ccache stats before build ===="
+          echo "==== CCache Status (Before) ===="
           ccache -s
           
+          # Execution
           chmod +x build.sh build_fix.sh script/*.sh
           mkdir -p build && cd build
           ../build_fix.sh -SKIP_BUNDLE=NO -SKIP_TEST=YES
           
-          # 【新增】编译完成后打印缓存命中率
-          echo "==== ccache stats after build ===="
+          echo "==== CCache Status (After) ===="
           ccache -s
 
-      - name: Save ccache
+      - name: Save CCache
         if: always()
         uses: actions/cache/save@v4
         with:
           path: ~/Library/Caches/ccache
           key: ${{ runner.os }}-ccache-${{ github.sha }}-${{ github.run_attempt }}
 
-      - name: Prepare macOS Artifact
+      # --- 6. Verification & Artifact Prep ---
+      - name: Package Artifacts
         if: success()
         run: |
           chmod -R 755 build/out/bin/
@@ -353,7 +363,7 @@ jobs:
           NEW_ZIP_NAME="ffmpeg-${FFMPEG_VERSION}-macos-arm64-clang.zip"
           mv build/ffmpeg-build*.zip "build/${NEW_ZIP_NAME}"
 
-      - name: Upload macOS Artifact
+      - name: Upload macOS Archive
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -361,7 +371,7 @@ jobs:
           path: build/ffmpeg-*.zip
           if-no-files-found: error
 
-      - name: Upload macOS Logs on Failure
+      - name: Upload Logs (On Failure)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -370,49 +380,47 @@ jobs:
           if-no-files-found: ignore
 
 
-  # ==========================================
-  # Job 3: 汇总生成 Release (依赖前两个任务成功)
-  # ==========================================
+  # ============================================================================
+  # Job 3: Create Release
+  # ============================================================================
   create-release:
+    name: Publish Release
     runs-on: ubuntu-24.04
-    needs: [build-linux, build-macos] # 必须等 Linux 和 macOS 都编译完成才会启动
+    needs: [build-linux, build-macos]
+    
     steps:
-      - name: Checkout repository
+      - name: Checkout (Sparse)
         uses: actions/checkout@v4
         with:
-          sparse-checkout: version # 只需要检出 version 目录用来生成列表，提高速度
+          sparse-checkout: version
 
-      - name: Download all artifacts
+      - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts # 下载后的结构会是 artifacts/linux-archive/... 和 artifacts/macos-archive/...
+          path: artifacts
 
-      - name: Generate Release Notes and Version
+      - name: Generate Release Notes
         run: |
-          # 1. 从 Linux 任务传过来的文本中读取版本号
+          # 1. Read Version
           FFMPEG_VERSION=$(cat artifacts/linux-archive/ffmpeg_version.txt)
           echo "FFMPEG_VERSION=$FFMPEG_VERSION" >> $GITHUB_ENV
           
-          # 2. 读取经过 build-linux 验证过的组件列表
+          # 2. Read Component List
           COMPONENTS_LIST=$(cat artifacts/linux-archive/components.md)
 
-          # 2. 准备时间戳
+          # 3. Timestamps
           export TZ='Asia/Shanghai'
           CURRENT_TIME=$(date +'%Y-%m-%dT%H:%M:%S+08:00')
           
-          # 3. 生成双语 Release Notes
+          # 4. Write Notes
           NOTES_FILE="release_notes.md"
-          
           echo "### ~~最新最热的 FFmpeg~~" > $NOTES_FILE
           echo "编译于 \`${CURRENT_TIME}\`。视频编码库均选用最新的 commit，其余库使用的则是最新的 release。" >> $NOTES_FILE
           echo "其中 x265, SVT-AV1, VVenC, VVdeC 编译开启了 LTO 优化和 PGO 优化，FFmpeg 开启了 LTO 优化。" >> $NOTES_FILE
           echo "" >> $NOTES_FILE
-          
           echo "Compiled on \`${CURRENT_TIME}\`. Video encoding libraries use the latest commit, while other libraries use the latest release." >> $NOTES_FILE
           echo "x265, SVT-AV1, VVenC, and VVdeC are compiled with LTO and PGO enabled. FFmpeg is compiled with LTO enabled." >> $NOTES_FILE
           echo "" >> $NOTES_FILE
-          
-          # 将验证过的组件列表追加进去
           echo "$COMPONENTS_LIST" >> $NOTES_FILE
 
       - name: Publish GitHub Release
@@ -421,7 +429,6 @@ jobs:
           tag_name: ${{ env.FFMPEG_VERSION }}-${{ github.run_number }}
           name: FFmpeg Build ${{ env.FFMPEG_VERSION }}
           body_path: release_notes.md
-          # 抓取两大平台所有的打包文件并挂载
           files: |
             artifacts/linux-archive/*.tar.gz
             artifacts/macos-archive/*.zip
