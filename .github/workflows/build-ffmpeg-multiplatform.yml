@@ -1,4 +1,4 @@
-name: FFmpeg Multi-Platform CI
+name: FFmpeg Multi-Platform CI Refactor
 
 # ==============================================================================
 # Triggers & Concurrency
@@ -71,12 +71,14 @@ jobs:
       - name: Install cargo-c
         run: |
           set +e
+          SKIP_INSTALL="false"
+
           # Check if cargo-cbuild exists and matches version
           if command -v cargo-cbuild >/dev/null 2>&1; then
             CURRENT_VERSION=$(cargo cbuild --version 2>/dev/null)
             if [[ "$CURRENT_VERSION" == *"${{ env.CARGO_C_VERSION }}"* ]]; then
               echo "✅ cargo-c v${{ env.CARGO_C_VERSION }} is already installed."
-              echo "SKIP_INSTALL=true" >> $GITHUB_ENV
+              SKIP_INSTALL="true"
             fi
           fi
           set -e
