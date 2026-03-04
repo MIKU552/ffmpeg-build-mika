@@ -1,55 +1,65 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for x264 (H.264 Video Encoder)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "x264"
-checkStatus $? "create directory failed"
-cd "x264/"
-checkStatus $? "change directory failed"
+echoSection "Building x264"
 
-# download source
-download https://code.videolan.org/videolan/x264/-/archive/master/x264-master.tar.gz "x264-master.tar.gz"
-checkStatus $? "download failed"
+# 2. Setup Build Directory
+# The main script (run_build) cleans the target source_subdir before calling this.
+# We create the directory to hold the source.
+TARGET_SRC_DIR="$SOURCE_DIR/x264"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# unpack
-tar -zxf "x264-master.tar.gz"
-checkStatus $? "unpack failed"
-cd "x264-master/"
-checkStatus $? "change directory failed"
+# 3. Download Source
+# Using the stable master branch tarball from VideoLAN
+URL="https://code.videolan.org/videolan/x264/-/archive/master/x264-master.tar.gz"
+download "$URL" "x264.tar.gz"
 
-# prepare build
-./configure --prefix="$TOOL_DIR" --enable-static --disable-cli
-checkStatus $? "configuration failed"
+# 4. Extract
+# Use strip-components to avoid needing to know the exact internal folder name
+tar -zxf "x264.tar.gz" --strip-components=1
+checkStatus $? "Unpack failed"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+# 5. Configure
+echo "Configuring x264..."
+# --enable-pic: Critical for linking this static lib into FFmpeg's shared libs
+# --disable-cli: We only need the library, not the executable
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-static \
+    --enable-pic \
+    --disable-cli
 
-# install
+checkStatus $? "Configuration failed"
+
+# 6. Compile
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Compilation failed"
+
+# 7. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "x264 Build Complete"
