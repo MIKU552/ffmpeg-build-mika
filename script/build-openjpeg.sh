@@ -1,140 +1,129 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-# Merged for Linux & macOS compatibility
+# ==============================================================================
+# Build Script for OpenJPEG (JPEG 2000 Codec)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
-
-# load functions (including run_sed)
-# shellcheck source=/dev/null
-. "$SCRIPT_DIR/functions.sh"
-
-# --- OS Detection ---
-OS_NAME=$(uname)
-
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/openjpeg")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir -p "openjpeg" # Use -p
-cd "openjpeg/"
-checkStatus $? "change directory failed"
-
-# download source
-OPENJPEG_TARBALL="openjpeg-$VERSION.tar.gz"
-OPENJPEG_UNPACK_DIR="openjpeg-$VERSION"
-download https://github.com/uclouvain/openjpeg/archive/refs/tags/v$VERSION.tar.gz "$OPENJPEG_TARBALL"
-checkStatus $? "download failed"
-
-# unpack
-if [ -d "$OPENJPEG_UNPACK_DIR" ]; then
-    rm -rf "$OPENJPEG_UNPACK_DIR"
-fi
-tar -zxf "$OPENJPEG_TARBALL"
-checkStatus $? "unpack failed"
-rm "$OPENJPEG_TARBALL" # Clean up tarball
-
-# prepare build
-BUILD_DIR="openjpeg_build"
-rm -rf "$BUILD_DIR"
-mkdir "$BUILD_DIR"
-checkStatus $? "create build directory failed"
-cd "$BUILD_DIR"
-checkStatus $? "change build directory failed"
-# Use consistent path for source directory relative to build directory
-SOURCE_REL_PATH="../$OPENJPEG_UNPACK_DIR"
-# Configure using CMake
-cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DBUILD_SHARED_LIBS=OFF \
-      -DBUILD_STATIC_LIBS=ON \
-      -DBUILD_TESTING=OFF \
-      -DBUILD_CODEC=OFF \
-      "$SOURCE_REL_PATH"
-checkStatus $? "configuration failed"
-
-# build
-make -j $CPUS
-checkStatus $? "build failed"
-
-# install
-make install
-checkStatus $? "installation failed"
-
-# --- Fix pkgconfig file for static linking (handle lib vs lib64) ---
-echo "Applying post-installation fix to libopenjp2.pc..."
-# Determine where the .pc file was installed
-PKGCONFIG_PATH_LIB="$TOOL_DIR/lib/pkgconfig/libopenjp2.pc"
-PKGCONFIG_PATH_LIB64="$TOOL_DIR/lib64/pkgconfig/libopenjp2.pc"
-ACTUAL_PC_FILE=""
-
-if [ -f "$PKGCONFIG_PATH_LIB" ]; then
-    ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB"
-elif [ "$OS_NAME" = "Linux" ] && [ -f "$PKGCONFIG_PATH_LIB64" ]; then
-    ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB64"
-fi
-
-if [ -z "$ACTUAL_PC_FILE" ]; then
-    echo "ERROR: libopenjp2.pc not found in expected pkgconfig directories after install!"
-    exit 1
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
 else
-    echo "Found pkgconfig file at: $ACTUAL_PC_FILE"
-    # Add -lm -lpthread if they are not already present in Libs.private or Libs
-    LIBS_LINE=$(grep "^Libs:" "$ACTUAL_PC_FILE")
-    LIBS_PRIVATE_LINE=$(grep "^Libs.private:" "$ACTUAL_PC_FILE")
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-    NEEDS_PTHREAD="YES"
-    NEEDS_M="YES"
+echoSection "Building OpenJPEG"
 
-    # Check if flags exist in either Libs or Libs.private
-    if echo "$LIBS_LINE $LIBS_PRIVATE_LINE" | grep -q -- "-lpthread"; then
-        NEEDS_PTHREAD="NO"
-    fi
-    if echo "$LIBS_LINE $LIBS_PRIVATE_LINE" | grep -q -- "-lm"; then
-        NEEDS_M="NO"
-    fi
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/openjpeg"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
+echo "Target Version: $VERSION"
+
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/openjpeg"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
+
+# 3. Download Source
+# URL: https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.0.tar.gz
+TARBALL="openjpeg-$VERSION.tar.gz"
+URL="https://github.com/uclouvain/openjpeg/archive/refs/tags/v$VERSION.tar.gz"
+
+download "$URL" "$TARBALL"
+
+# Unpack
+SRC_DIR_NAME="openjpeg-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring OpenJPEG..."
+
+# CMake Options:
+# - BUILD_SHARED_LIBS=OFF: Static build.
+# - BUILD_CODEC=OFF: Don't build CLI tools (opj_compress/decompress).
+# - OPENJPEG_INSTALL_LIB_DIR=lib: Force install to 'lib' (not lib64) to simplify path detection.
+cmake -S . -B build -G "Unix Makefiles" \
+    -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DBUILD_STATIC_LIBS=ON \
+    -DBUILD_CODEC=OFF \
+    -DBUILD_TESTING=OFF \
+    -DBUILD_DOC=OFF \
+    -DOPENJPEG_INSTALL_LIB_DIR=lib
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+cmake --build build -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
+cmake --install build
+checkStatus $? "Installation failed"
+
+# 7. Post-Install Fix for Static Linking
+# ------------------------------------------------------------------------------
+# OpenJPEG needs -lm (math) and -lpthread (threading) for static linking.
+# We modify the .pc file to ensure FFmpeg picks these up.
+
+echoSection "Patching libopenjp2.pc"
+PC_FILE="$TOOL_DIR/lib/pkgconfig/libopenjp2.pc"
+
+if [ -f "$PC_FILE" ]; then
+    echo "Found pkg-config file: $PC_FILE"
+    
     FLAGS_TO_ADD=""
-    if [ "$NEEDS_PTHREAD" = "YES" ]; then FLAGS_TO_ADD="$FLAGS_TO_ADD -lpthread"; fi
-    if [ "$NEEDS_M" = "YES" ]; then FLAGS_TO_ADD="$FLAGS_TO_ADD -lm"; fi
+    
+    # Check for Math library
+    if ! grep -q -- "-lm" "$PC_FILE"; then
+        FLAGS_TO_ADD="$FLAGS_TO_ADD -lm"
+    fi
+    
+    # Check for Pthread library
+    if ! grep -q -- "-lpthread" "$PC_FILE"; then
+        FLAGS_TO_ADD="$FLAGS_TO_ADD -lpthread"
+    fi
 
     if [ -n "$FLAGS_TO_ADD" ]; then
-        echo "Adding flags '$FLAGS_TO_ADD' to $ACTUAL_PC_FILE"
-        # Append to Libs.private if it exists, otherwise append to Libs
-        if grep -q "^Libs.private:" "$ACTUAL_PC_FILE"; then
-            run_sed "s|^Libs.private:.*|&${FLAGS_TO_ADD}|" "$ACTUAL_PC_FILE"
+        echo "Injecting flags:$FLAGS_TO_ADD"
+        
+        # Prefer injecting into Libs.private
+        if grep -q "Libs.private:" "$PC_FILE"; then
+            run_sed "s/Libs.private:/Libs.private:$FLAGS_TO_ADD/g" "$PC_FILE"
         else
-            # Append to Libs line
-             run_sed "s|^Libs:.*|&${FLAGS_TO_ADD}|" "$ACTUAL_PC_FILE"
-             # OR add Libs.private line if Libs is complex
-             # echo "Libs.private:$FLAGS_TO_ADD" >> "$ACTUAL_PC_FILE"
+            run_sed "s/Libs:/Libs:$FLAGS_TO_ADD/g" "$PC_FILE"
         fi
-         checkStatus $? "modify pkgconfig file failed"
+        checkStatus $? "Patching libopenjp2.pc failed"
     else
-        echo "Required flags (-lm, -lpthread) already seem present in $ACTUAL_PC_FILE."
+        echo "Flags (-lm -lpthread) already present."
     fi
+else
+    echo "Error: libopenjp2.pc not found. Static linking will likely fail."
+    exit 1
 fi
-# --- End pkgconfig fix ---
 
-cd .. # Back to parent dir (source/openjpeg)
+echoSection "OpenJPEG Build Complete"
