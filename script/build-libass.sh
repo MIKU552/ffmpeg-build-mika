@@ -1,60 +1,89 @@
 #!/bin/bash
 
-# Copyright 2022 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for libass (Portable ASS/SSA Subtitle Renderer)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libass")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+echoSection "Building libass"
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "libass"
-checkStatus $? "create directory failed"
-cd "libass/"
-checkStatus $? "change directory failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/libass"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# download source
-download https://github.com/libass/libass/releases/download/$VERSION/libass-$VERSION.tar.gz "libass.tar.gz"
-checkStatus $? "download failed"
+echo "Target Version: $VERSION"
 
-# unpack
-tar -zxf "libass.tar.gz"
-checkStatus $? "unpack failed"
-cd "libass-$VERSION/"
-checkStatus $? "change directory failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/libass"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# prepare build
-./configure --prefix="$TOOL_DIR" --enable-shared=no
-checkStatus $? "configuration failed"
+# 3. Download Source
+# URL: https://github.com/libass/libass/releases/download/0.17.1/libass-0.17.1.tar.gz
+TARBALL="libass-$VERSION.tar.gz"
+URL="https://github.com/libass/libass/releases/download/$VERSION/libass-$VERSION.tar.gz"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+download "$URL" "$TARBALL"
 
-# install
+# Unpack
+SRC_DIR_NAME="libass-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring libass..."
+
+# Flags:
+# --enable-static / --disable-shared: Static linking requirement.
+# --enable-fontconfig: Use fontconfig for font selection (we built this).
+# --enable-harfbuzz: Use harfbuzz for text shaping (we built this).
+# --enable-fribidi: Use fribidi for BiDi support (we built this).
+# --disable-require-system-font-provider: Don't force CoreText on macOS, prefer fontconfig.
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-static \
+    --disable-shared \
+    --enable-fontconfig \
+    --enable-harfbuzz \
+    --enable-fribidi \
+    --disable-require-system-font-provider
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "libass Build Complete"
