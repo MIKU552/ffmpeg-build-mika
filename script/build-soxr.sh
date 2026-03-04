@@ -1,60 +1,90 @@
 #!/bin/bash
-# script/build-soxr.sh (Linux Fix)
 
-# ---
-# Functions
-# ---
-SCRIPT_DIR="$( cd "$( dirname "$0" )" && pwd )"
-# shellcheck source=../script/functions.sh
-. "$SCRIPT_DIR/functions.sh"
+# ==============================================================================
+# Build Script for SoXR (The SoX Resampler library)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# ---
-# Main
-# ---
-
-# Arguments
+# 1. Argument Processing
+echo "Arguments: $@"
 SCRIPT_DIR="$1"
 SOURCE_DIR="$2"
 TOOL_DIR="$3"
 CPUS="$4"
 
-# Get source code
-SOXR_VERSION="0.1.3"
-SOXR_URL="https://sourceforge.net/projects/soxr/files/soxr-${SOXR_VERSION}-Source.tar.xz/download"
-SOXR_SOURCE_DIR="$SOURCE_DIR/soxr"
-
-if [ ! -d "$SOXR_SOURCE_DIR" ]; then
-    echo "Downloading SoXR source..."
-    mkdir -p "$SOXR_SOURCE_DIR"
-    curl -# -L "$SOXR_URL" | tar -xJ --strip-components=1 -C "$SOXR_SOURCE_DIR"
-    checkStatus $? "Failed to download and extract SoXR"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
 else
-    echo "SoXR source directory already exists."
+    echo "Error: functions.sh not found."
+    exit 1
 fi
 
+echoSection "Building SoXR"
 
-# Build and install
-cd "$SOXR_SOURCE_DIR" || exit 1
-rm -rf build
-mkdir build && cd build
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/soxr"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# Configure with CMake, explicitly setting library and pkgconfig paths
-# This ensures files are installed into /lib and not /lib64, matching the main script's expectations.
-cmake .. \
+echo "Target Version: $VERSION"
+
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/soxr"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
+
+# 3. Download Source
+# URL: https://sourceforge.net/projects/soxr/files/soxr-0.1.3-Source.tar.xz/download
+TARBALL="soxr-$VERSION.tar.xz"
+URL="https://sourceforge.net/projects/soxr/files/soxr-$VERSION-Source.tar.xz/download"
+
+download "$URL" "$TARBALL"
+
+# Unpack
+SRC_DIR_NAME="soxr-src"
+mkdir -p "$SRC_DIR_NAME"
+# Use -xJf for .tar.xz
+tar -xJf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring SoXR..."
+
+# CMake Options:
+# - CMAKE_INSTALL_LIBDIR=lib: Force install to 'lib' (not lib64).
+# - BUILD_SHARED_LIBS=OFF: Static linking.
+# - WITH_OPENMP=OFF: Disable OpenMP to avoid libgomp dependencies (portability).
+# - BUILD_TESTS=OFF: Speed up build.
+cmake -S . -B build -G "Unix Makefiles" \
     -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
-    -DCMAKE_INSTALL_LIBDIR="lib" \
-    -DCMAKE_INSTALL_PKGCONFIGDIR="lib/pkgconfig" \
+    -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -DBUILD_SHARED_LIBS=OFF \
     -DWITH_OPENMP=OFF \
-    -DBUILD_TESTS=OFF
+    -DBUILD_TESTS=OFF \
+    -DWITH_PVRG=OFF \
+    -DWITH_LSR=OFF
 
-checkStatus $? "soxr cmake configure failed"
+checkStatus $? "Configuration failed"
 
-# Compile and install
-make -j"$CPUS"
-checkStatus $? "soxr make failed"
+# 5. Build
+echo "Compiling..."
+cmake --build build -j "$CPUS"
+checkStatus $? "Build failed"
 
-make install
-checkStatus $? "soxr make install failed"
+# 6. Install
+echo "Installing..."
+cmake --install build
+checkStatus $? "Installation failed"
+
+echoSection "SoXR Build Complete"
