@@ -1,61 +1,105 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for OpenH264 (Cisco H.264 Codec)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# $1 = script directory
-# $2 = working directory
-# $3 = tool directory
-# $4 = CPUs
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+echoSection "Building OpenH264"
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/openh264")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/openh264"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "openh264"
-checkStatus $? "create directory failed"
-cd "openh264/"
-checkStatus $? "change directory failed"
+echo "Target Version: $VERSION"
 
-# download source
-download https://github.com/cisco/openh264/archive/v$VERSION.tar.gz "openh264.tar.gz"
-checkStatus $? "download failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/openh264"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# unpack
-tar -zxf "openh264.tar.gz"
-checkStatus $? "unpack failed"
-cd "openh264-$VERSION/"
-checkStatus $? "change directory failed"
+# 3. Download Source
+# URL: https://github.com/cisco/openh264/archive/v2.3.1.tar.gz
+TARBALL="openh264-$VERSION.tar.gz"
+URL="https://github.com/cisco/openh264/archive/v$VERSION.tar.gz"
 
-# build
-make PREFIX="$TOOL_DIR" -j $CPUS
-checkStatus $? "build failed"
+download "$URL" "$TARBALL"
 
-# install
-make install-static PREFIX="$TOOL_DIR"
-checkStatus $? "installation failed"
+# Unpack
+SRC_DIR_NAME="openh264-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Environment Setup (Architecture Detection)
+cd "$SRC_DIR_NAME" || exit 1
+
+# Detect OS and ARCH for OpenH264 Makefile
+SYS_OS=$(uname -s)
+SYS_ARCH=$(uname -m)
+
+MAKE_OS="linux"
+MAKE_ARCH="x86_64"
+
+if [ "$SYS_OS" = "Darwin" ]; then
+    MAKE_OS="darwin"
+fi
+
+if [ "$SYS_ARCH" = "aarch64" ] || [ "$SYS_ARCH" = "arm64" ]; then
+    MAKE_ARCH="arm64"
+elif [ "$SYS_ARCH" = "x86_64" ]; then
+    MAKE_ARCH="x86_64"
+fi
+
+echo "Detected OS: $MAKE_OS, ARCH: $MAKE_ARCH"
+
+# 5. Build
+echo "Compiling..."
+
+# make arguments:
+# OS/ARCH: Required by OpenH264 Makefile
+# PREFIX: Install location
+# libraries: Only build the lib, not the console apps
+make -j "$CPUS" \
+    OS="$MAKE_OS" \
+    ARCH="$MAKE_ARCH" \
+    PREFIX="$TOOL_DIR" \
+    libraries
+
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
+
+# install-static: Only install static libraries (.a) and headers
+make install-static \
+    OS="$MAKE_OS" \
+    ARCH="$MAKE_ARCH" \
+    PREFIX="$TOOL_DIR"
+
+checkStatus $? "Installation failed"
+
+echoSection "OpenH264 Build Complete"
