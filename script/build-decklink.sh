@@ -1,38 +1,63 @@
 #!/bin/bash
 
-# Copyright 2023 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for Blackmagic DeckLink SDK
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-TOOL_DIR=$2
-DECKLINK_SDK=$3
+# 1. Argument Processing
+# Note: Arguments must match the standard signature called by run_build in build_fix.sh
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2" # Unused for Decklink (external SDK)
+TOOL_DIR="$3"
+CPUS="$4"       # Unused
+DECKLINK_SDK="$5"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
-
-# check decklink folder
-cd $DECKLINK_SDK
-checkStatus $? "change directory failed"
-if [ -f "DeckLinkAPI.h" ]; then
-    echo "decklink SDK found"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
 else
-    echo "decklink SDK not found"
+    echo "Error: functions.sh not found."
     exit 1
 fi
 
-# copy SDK
-cp * "$TOOL_DIR/include"
-checkStatus $? "copy SDK failed"
+echoSection "Installing DeckLink SDK Headers"
+
+# 2. Validate SDK Path
+if [ -z "$DECKLINK_SDK" ]; then
+    echo "Error: DECKLINK_SDK path is empty. Please pass it via -DECKLINK_SDK=..."
+    exit 1
+fi
+
+echo "SDK Path: $DECKLINK_SDK"
+
+# 3. Check for Header File
+# FFmpeg requires DeckLinkAPI.h to enable --enable-decklink
+HEADER_FILE="$DECKLINK_SDK/DeckLinkAPI.h"
+
+if [ ! -f "$HEADER_FILE" ]; then
+    echo "Error: DeckLinkAPI.h not found in $DECKLINK_SDK"
+    echo "Please ensure the path points directly to the directory containing the header files (usually 'include' folder in the SDK)."
+    exit 1
+fi
+
+# 4. Install Headers
+# We only need to copy the headers to the toolchain include directory.
+# FFmpeg will look for them there.
+echo "Copying headers to $TOOL_DIR/include..."
+
+mkdir -p "$TOOL_DIR/include"
+
+# Copy all headers and IDL files
+cp "$DECKLINK_SDK"/*.h "$TOOL_DIR/include/" 2>/dev/null
+cp "$DECKLINK_SDK"/*.idl "$TOOL_DIR/include/" 2>/dev/null
+
+# Verify copy
+if [ -f "$TOOL_DIR/include/DeckLinkAPI.h" ]; then
+    echo "DeckLink SDK installed successfully."
+else
+    checkStatus 1 "Failed to copy DeckLink headers."
+fi
