@@ -45,7 +45,7 @@ cd "$TARGET_SRC_DIR" || exit 1
 # Note: GitHub archives for libvpx usually drop the 'v' in the folder structure or not,
 # so we rely on strip-components to be safe.
 TARBALL="vpx-$VERSION.tar.gz"
-URL="https://github.com/webmproject/libvpx/archive/v$VERSION.tar.gz"
+URL="https://github.com/webmproject/libvpx/archive/$VERSION.tar.gz"
 
 download "$URL" "$TARBALL"
 
