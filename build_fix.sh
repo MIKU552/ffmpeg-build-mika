@@ -375,6 +375,69 @@ run_build() {
 }
 
 # ------------------------------------------------------------------------------
+# 6.5. Prepare PGO Sample Files
+# ------------------------------------------------------------------------------
+SAMPLE_DIR="${BASE_DIR}/sample"
+mkdir -p "$SAMPLE_DIR"
+echoSection "Downloading PGO sample files to $SAMPLE_DIR"
+
+DOWNLOAD_URLS=(
+    "https://driveshare.miku552.top/0:/dev/ffbuild/4k_bbb.y4m.xz"
+    "https://driveshare.miku552.top/0:/dev/ffbuild/720p_bbb.y4m.xz"
+    "https://driveshare.miku552.top/0:/dev/ffbuild/stefan_sif.y4m.xz"
+    "https://driveshare.miku552.top/0:/dev/ffbuild/taikotemoto.y4m.xz"
+)
+
+FAKE_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+MAX_RETRIES=5
+
+for url in "${DOWNLOAD_URLS[@]}"; do
+    filename=$(basename "$url")
+    if [ ! -f "$SAMPLE_DIR/$filename" ]; then
+        echo "Downloading $filename..."
+        
+        RETRY_COUNT=0
+        DOWNLOAD_SUCCESS="NO"
+        
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            EXIT_CODE=0
+            
+            # Try wget first, then curl
+            if command -v wget >/dev/null 2>&1; then
+                # wget: -t 3 (internal retries), -c (continue), -q (quiet)
+                wget -q -c -t 3 -U "$FAKE_UA" -O "$SAMPLE_DIR/$filename" "$url"
+                EXIT_CODE=$?
+            elif command -v curl >/dev/null 2>&1; then
+                # curl: --retry 3, -C - (continue), -s (silent)
+                curl -fL -s --retry 3 -C - -A "$FAKE_UA" -o "$SAMPLE_DIR/$filename" "$url"
+                EXIT_CODE=$?
+            else
+                echo "ERROR: Neither wget nor curl found. Cannot download $filename."
+                exit 1
+            fi
+            
+            # Check exit code of the download command, NOT the command -v check
+            if [ $EXIT_CODE -eq 0 ]; then
+                DOWNLOAD_SUCCESS="YES"
+                break # Download successful, break retry loop
+            else
+                RETRY_COUNT=$((RETRY_COUNT+1))
+                echo "WARNING: Download failed for $filename (Code: $EXIT_CODE). Retrying ($RETRY_COUNT/$MAX_RETRIES) in 5 seconds..."
+                sleep 5
+            fi
+        done
+        
+        if [ "$DOWNLOAD_SUCCESS" = "NO" ]; then
+            echo "ERROR: Failed to download $filename after $MAX_RETRIES attempts. Please check network or URL."
+            exit 1
+        fi
+    else
+        echo "Found $filename, skipping download."
+    fi
+done
+
+
+# ------------------------------------------------------------------------------
 # 7. Dependency Build Execution
 # ------------------------------------------------------------------------------
 COMPILATION_START_TIME=$(currentTimeInSeconds)
