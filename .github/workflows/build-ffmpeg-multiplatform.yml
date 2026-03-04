@@ -79,7 +79,7 @@ jobs:
       - name: Run Build Script
         run: |
           export PATH="/usr/lib/ccache:$PATH"
-          ccache -M 2G
+          ccache -M 600M
           
           # 【新增】强制要求 CMake 生成的构建配置使用 ccache
           export CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -102,6 +102,127 @@ jobs:
         with:
           path: ~/.cache/ccache
           key: ${{ runner.os }}-ccache-${{ github.sha }}-${{ github.run_attempt }}
+      
+      # ========================================================
+      # 【终极验证】全能组件列表生成器 (修复 fdk-aac 和 Git 版本问题)
+      # ========================================================
+      - name: Generate Verified Component List
+        if: success()
+        run: |
+          echo "### Verified Compiled Component Versions" > build/components.md
+          echo "" >> build/components.md
+          
+          LIB_DIR="$(pwd)/build/tool/lib"
+          
+          # 定义检查函数
+          check_lib() {
+            local name=$1
+            local version_file=$2
+            local lib_pattern=$3
+            
+            # 使用 find 进行模糊匹配，只要能找到符合 pattern 的 .a 文件就算成功
+            # 这样 libvorbis 可以匹配 libvorbis.a, libvorbisenc.a 等
+            if find "$LIB_DIR" -maxdepth 1 -name "$lib_pattern" -print -quit | grep -q .; then
+               
+               #读取版本号
+               local ver=$(cat "$version_file")
+               
+               # 【处理 Git 版本】如果版本号为空，或者看起来像 Git Hash
+               if [ -z "$ver" ]; then
+                   ver="git-latest"
+               elif [[ "$ver" =~ ^[0-9a-f]{7,40}$ ]]; then
+                   # 如果是长 Hash，截取前 7 位显示更美观
+                   ver="git-$(echo $ver | cut -c1-7)"
+               fi
+               
+               echo "* **$name**: \`$ver\`" >> build/components.md
+               echo "✅ Verified $name (Found $lib_pattern, Version: $ver)"
+            else
+               echo "⚠️ Skipped $name (Artifact matching $lib_pattern not found in lib dir)"
+            fi
+          }
+
+          # 遍历 version 目录
+          for f in $(ls version/* | sort); do
+              if [ -f "$f" ]; then
+                  comp=$(basename "$f")
+                  
+                  # 过滤纯构建工具
+                  if [[ "$comp" =~ ^(cmake|meson|ninja|nasm|yasm|cargo-c|pkg-config)$ ]]; then continue; fi
+                  if [ "$comp" = "ffmpeg" ]; then continue; fi
+
+                  # 【全面映射表】在这里补全所有可能的库名
+                  case "$comp" in
+                      # 音频库
+                      "fdk-aac")    PATTERN="libfdk-aac.a" ;;
+                      "lame")       PATTERN="libmp3lame.a" ;;
+                      "mp3lame")    PATTERN="libmp3lame.a" ;;
+                      "opus")       PATTERN="libopus.a" ;;
+                      "vorbis")     PATTERN="libvorbis.a" ;;
+                      "ogg")        PATTERN="libogg.a" ;;
+                      "theora")     PATTERN="libtheora.a" ;;
+                      "speex")      PATTERN="libspeex.a" ;;
+                      "twolame")    PATTERN="libtwolame.a" ;;
+                      "gsm")        PATTERN="libgsm.a" ;;
+                      "opencore-amr"*) PATTERN="libopencore-amr*.a" ;; # 通配符
+                      
+                      # 视频库
+                      "x264")       PATTERN="libx264.a" ;;
+                      "x265"*)      PATTERN="libx265.a" ;;
+                      "aom")        PATTERN="libaom.a" ;;
+                      "dav1d")      PATTERN="libdav1d.a" ;;
+                      "rav1e")      PATTERN="librav1e.a" ;;
+                      "svt-av1")    PATTERN="libSvtAv1Enc.a" ;;
+                      "vpx")        PATTERN="libvpx.a" ;;
+                      "vvenc")      PATTERN="libvvenc.a" ;;
+                      "vvdec")      PATTERN="libvvdec.a" ;;
+                      "kvazaar")    PATTERN="libkvazaar.a" ;;
+                      "openh264")   PATTERN="libopenh264.a" ;;
+                      "openjpeg")   PATTERN="libopenjp2.a" ;; # 注意这里是 libopenjp2
+                      "webp")       PATTERN="libwebp.a" ;;
+                      
+                      # 滤镜与特效
+                      "zimg")       PATTERN="libzimg.a" ;;
+                      "vmaf"*)      PATTERN="libvmaf.a" ;;
+                      "libass")     PATTERN="libass.a" ;;
+                      "freetype")   PATTERN="libfreetype.a" ;;
+                      "fribidi")    PATTERN="libfribidi.a" ;;
+                      "fontconfig") PATTERN="libfontconfig.a" ;;
+                      "harfbuzz")   PATTERN="libharfbuzz.a" ;;
+                      "placebo")    PATTERN="libplacebo.a" ;;
+                      "shaderc")    PATTERN="libshaderc_combined.a" ;; # shaderc 静态库名比较特殊
+                      "libklvanc")  PATTERN="libklvanc.a" ;;
+                      "zvbi")       PATTERN="libzvbi.a" ;;
+                      "arib"*)      PATTERN="libarib*.a" ;; # aribb24 等
+                      
+                      # 基础/传输库
+                      "zlib")       PATTERN="libz.a" ;;
+                      "openssl")    PATTERN="libssl.a" ;;
+                      "sdl")        PATTERN="libSDL2.a" ;;
+                      "gmp")        PATTERN="libgmp.a" ;;
+                      "gnutls")     PATTERN="libgnutls.a" ;;
+                      "xml2")       PATTERN="libxml2.a" ;;
+                      "libxml2")    PATTERN="libxml2.a" ;;
+                      "srt")        PATTERN="libsrt.a" ;;
+                      "zmq")        PATTERN="libzmq.a" ;;
+                      "snappy")     PATTERN="libsnappy.a" ;;
+                      "bluray")     PATTERN="libbluray.a" ;;
+                      "bzip2")      PATTERN="libbz2.a" ;;
+                      "iconv")      PATTERN="libiconv.a" ;;
+                      "lzma"|"xz")  PATTERN="liblzma.a" ;;
+                      "soxr")       PATTERN="libsoxr.a" ;;
+                      "vid.stab")   PATTERN="libvidstab.a" ;;
+                      
+                      # AI / 特殊 (针对你的 whisper 提问)
+                      "whisper")    PATTERN="libwhisper.a" ;; 
+                      
+                      # 默认兜底：尝试 libname.a
+                      *)            PATTERN="lib${comp}.a" ;; 
+                  esac
+                  
+                  check_lib "$comp" "$f" "$PATTERN"
+              fi
+          done
 
       - name: Prepare Linux Artifact
         if: success()
@@ -196,7 +317,7 @@ jobs:
       - name: Run Build Script
         run: |
           export PATH="$(brew --prefix ccache)/libexec:$PATH"
-          ccache -M 2G
+          ccache -M 500M
           
           # 【新增】强制要求 CMake 生成的构建配置使用 ccache
           export CMAKE_C_COMPILER_LAUNCHER=ccache
@@ -272,6 +393,9 @@ jobs:
           FFMPEG_VERSION=$(cat artifacts/linux-archive/ffmpeg_version.txt)
           echo "FFMPEG_VERSION=$FFMPEG_VERSION" >> $GITHUB_ENV
           
+          # 2. 读取经过 build-linux 验证过的组件列表
+          COMPONENTS_LIST=$(cat artifacts/linux-archive/components.md)
+
           # 2. 准备时间戳
           export TZ='Asia/Shanghai'
           CURRENT_TIME=$(date +'%Y-%m-%dT%H:%M:%S+08:00')
@@ -288,20 +412,8 @@ jobs:
           echo "x265, SVT-AV1, VVenC, and VVdeC are compiled with LTO and PGO enabled. FFmpeg is compiled with LTO enabled." >> $NOTES_FILE
           echo "" >> $NOTES_FILE
           
-          echo "### Compiled Component Versions" >> $NOTES_FILE
-          echo "" >> $NOTES_FILE
-          
-          # 遍历 version 目录
-          for f in $(ls version/* | sort); do
-              if [ -f "$f" ]; then
-                  comp=$(basename "$f")
-                  if [ "$comp" = "ffmpeg" ]; then
-                      continue
-                  fi
-                  ver=$(cat "$f")
-                  echo "* **$comp**: \`$ver\`" >> $NOTES_FILE
-              fi
-          done
+          # 将验证过的组件列表追加进去
+          echo "$COMPONENTS_LIST" >> $NOTES_FILE
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
