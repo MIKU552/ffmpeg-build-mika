@@ -1,62 +1,126 @@
 #!/bin/bash
 
-# Copyright 2023 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for SRT (Secure Reliable Transport)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/srt")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+echoSection "Building SRT"
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "srt"
-checkStatus $? "create directory failed"
-cd "srt/"
-checkStatus $? "change directory failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/srt"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# download source
-download https://github.com/Haivision/srt/archive/refs/tags/v$VERSION.tar.gz "srt.tar.gz"
-checkStatus $? "download failed"
+echo "Target Version: $VERSION"
 
-# unpack
-tar -zxf "srt.tar.gz"
-checkStatus $? "unpack failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/srt"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# prepare build
-mkdir srt_build
-checkStatus $? "create build directory failed"
-cd srt_build
-checkStatus $? "change build directory failed"
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DENABLE_SHARED=OFF -DENABLE_APPS=OFF ../srt-$VERSION/
-checkStatus $? "configuration failed"
+# 3. Download Source
+# URL: https://github.com/Haivision/srt/archive/refs/tags/v1.5.3.tar.gz
+TARBALL="srt-$VERSION.tar.gz"
+URL="https://github.com/Haivision/srt/archive/refs/tags/v$VERSION.tar.gz"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+download "$URL" "$TARBALL"
 
-# install
-make install
-checkStatus $? "installation failed"
+# Unpack
+SRC_DIR_NAME="srt-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring SRT..."
+
+# CMake Options:
+# - CMAKE_INSTALL_LIBDIR=lib: Force install to 'lib' (not lib64).
+# - ENABLE_SHARED=OFF: Static build.
+# - ENABLE_APPS=OFF: Don't build tools (srt-live-transmit, etc).
+# - OPENSSL_ROOT_DIR: Critical! Point to our custom static OpenSSL build.
+# - OPENSSL_USE_STATIC_LIBS=ON: Ensure we link against static libssl/libcrypto.
+# - ENABLE_HEAVY_LOGGING=OFF: Optimize for performance/size.
+cmake -S . -B build -G "Unix Makefiles" \
+    -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DENABLE_SHARED=OFF \
+    -DENABLE_STATIC=ON \
+    -DENABLE_APPS=OFF \
+    -DENABLE_HEAVY_LOGGING=OFF \
+    -DOPENSSL_ROOT_DIR="$TOOL_DIR" \
+    -DOPENSSL_USE_STATIC_LIBS=ON
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+cmake --build build -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
+cmake --install build
+checkStatus $? "Installation failed"
+
+# 7. Post-Install Fix for Static Linking
+# ------------------------------------------------------------------------------
+# SRT's pkg-config file (srt.pc) sometimes misses the dependency on OpenSSL
+# and Pthread when linking statically.
+
+echoSection "Patching srt.pc"
+PC_FILE="$TOOL_DIR/lib/pkgconfig/srt.pc"
+
+if [ -f "$PC_FILE" ]; then
+    echo "Found pkg-config file: $PC_FILE"
+    
+    # We need to ensure -lssl -lcrypto -lpthread are in Libs.private (or Libs)
+    # Since we built OpenSSL statically, these are mandatory.
+    
+    FLAGS_TO_ADD=""
+    if ! grep -q -- "-lssl" "$PC_FILE"; then FLAGS_TO_ADD="$FLAGS_TO_ADD -lssl"; fi
+    if ! grep -q -- "-lcrypto" "$PC_FILE"; then FLAGS_TO_ADD="$FLAGS_TO_ADD -lcrypto"; fi
+    if ! grep -q -- "-lpthread" "$PC_FILE"; then FLAGS_TO_ADD="$FLAGS_TO_ADD -lpthread"; fi
+
+    if [ -n "$FLAGS_TO_ADD" ]; then
+        echo "Injecting flags:$FLAGS_TO_ADD"
+        if grep -q "Libs.private:" "$PC_FILE"; then
+            run_sed "s/Libs.private:/Libs.private:$FLAGS_TO_ADD/g" "$PC_FILE"
+        else
+            # Some versions of SRT pc file might not have Libs.private
+            run_sed "s/Libs:/Libs:$FLAGS_TO_ADD/g" "$PC_FILE"
+        fi
+        checkStatus $? "Patching srt.pc failed"
+    else
+        echo "Dependencies seem correct."
+    fi
+else
+    echo "Warning: srt.pc not found."
+fi
+
+echoSection "SRT Build Complete"
