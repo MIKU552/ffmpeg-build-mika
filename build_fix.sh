@@ -197,10 +197,10 @@ mkdir -p "$SAMPLE_DIR"
 echoSection "Downloading PGO sample files to $SAMPLE_DIR"
 
 DOWNLOAD_URLS=(
-    "https://drive.google.com/file/d/1RtvWrpLugAdtcBVONxCJkIZS1vCqer7c/view?usp=sharing"
-    "https://drive.google.com/file/d/1ITx5EGOzo-6Z80NBTcEbEIMNdwn8Bfbn/view?usp=sharing"
-    "https://drive.google.com/file/d/1ALr97rSZtxU-i20Cl4O-V7LSoaRbqR1B/view?usp=sharing"
-    "https://drive.google.com/file/d/18PZru9z0zZNfcxpM44OT6uAAdkzL3o8P/view?usp=sharing"
+    "https://driveshare.miku552.top/0:/dev/ffbuild/4k_bbb.y4m.xz"
+    "https://driveshare.miku552.top/0:/dev/ffbuild/720p_bbb.y4m.xz"
+    "https://driveshare.miku552.top/0:/dev/ffbuild/stefan_sif.y4m.xz"
+    "https://driveshare.miku552.top/0:/dev/ffbuild/taikotemoto.y4m.xz"
 )
 
 # 定义 UA 伪装
