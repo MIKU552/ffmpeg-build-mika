@@ -70,7 +70,6 @@ echo "Configuring libvmaf..."
 # --default-library=static: Static linking requirement.
 # -Dbuilt_in_models=true: Embed models into the binary (makes ffmpeg portable!).
 # -Db_lto=true: Enable Link Time Optimization.
-# -Ddocs=false: Skip documentation.
 meson setup build \
     --prefix="$TOOL_DIR" \
     --libdir=lib \
@@ -78,7 +77,6 @@ meson setup build \
     --buildtype=release \
     -Dbuilt_in_models=true \
     -Db_lto=true \
-    -Ddocs=false \
     -Denable_float=true
 
 checkStatus $? "Configuration failed"
