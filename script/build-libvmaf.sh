@@ -1,69 +1,126 @@
 #!/bin/bash
 
-# Copyright 2023 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for libvmaf (Video Quality Assessment)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libvmaf")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+echoSection "Building libvmaf"
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "libvmaf"
-checkStatus $? "create directory failed"
-cd "libvmaf/"
-checkStatus $? "change directory failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/libvmaf"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# download source
-download https://github.com/Netflix/vmaf/archive/refs/tags/v$VERSION.tar.gz "libvmaf.tar.gz"
-checkStatus $? "download failed"
+OS_NAME=$(uname -s)
+echo "Target Version: $VERSION"
 
-# unpack
-tar -zxf "libvmaf.tar.gz"
-checkStatus $? "unpack failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/libvmaf"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# prepare python3 virtual environment / meson
+# 3. Download Source
+# URL: https://github.com/Netflix/vmaf/archive/refs/tags/v2.3.1.tar.gz
+TARBALL="libvmaf-$VERSION.tar.gz"
+URL="https://github.com/Netflix/vmaf/archive/refs/tags/v$VERSION.tar.gz"
+
+download "$URL" "$TARBALL"
+
+# Unpack
+SRC_DIR_NAME="libvmaf-src"
+mkdir -p "$SRC_DIR_NAME"
+# Extract to standard directory
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Environment Setup (Meson)
 prepareMeson
 
-# prepare build
-cd "vmaf-$VERSION/libvmaf/"
-checkStatus $? "change directory failed"
-meson build --prefix "$TOOL_DIR" --libdir=lib --buildtype release --default-library static
-checkStatus $? "configuration failed"
+# 5. Configure
+# Critical: The C library build logic is inside the 'libvmaf' subdirectory
+cd "$SRC_DIR_NAME/libvmaf" || exit 1
 
-# build
-ninja -v -j $CPUS -C build
-checkStatus $? "build failed"
+echo "Configuring libvmaf..."
 
-# install
-ninja -v -C build install
-checkStatus $? "installation failed"
+# Options:
+# --libdir=lib: Force install to 'lib' directory.
+# --default-library=static: Static linking requirement.
+# -Dbuilt_in_models=true: Embed models into the binary (makes ffmpeg portable!).
+# -Db_lto=true: Enable Link Time Optimization.
+# -Ddocs=false: Skip documentation.
+meson setup build \
+    --prefix="$TOOL_DIR" \
+    --libdir=lib \
+    --default-library=static \
+    --buildtype=release \
+    -Dbuilt_in_models=true \
+    -Db_lto=true \
+    -Ddocs=false \
+    -Denable_float=true
 
-# post-installation
-# static linking fails because c++ dependency is missing in pc file (pkg-config file)
-# https://github.com/Netflix/vmaf/issues/788
-sed -i.original -e 's/lvmaf/lvmaf -lstdc++/g' $TOOL_DIR/lib/pkgconfig/libvmaf.pc
-checkStatus $? "modify pkg-config .pc file failed"
+checkStatus $? "Configuration failed"
+
+# 6. Build
+echo "Compiling..."
+ninja -C build -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 7. Install
+echo "Installing..."
+ninja -C build install
+checkStatus $? "Installation failed"
+
+# 8. Post-Install Fix for Static Linking
+# ------------------------------------------------------------------------------
+# libvmaf is C++, but exposes C API. Static linking often fails because
+# the .pc file doesn't explicitly link against the C++ standard library.
+
+echoSection "Patching libvmaf.pc"
+PC_FILE="$TOOL_DIR/lib/pkgconfig/libvmaf.pc"
+
+if [ -f "$PC_FILE" ]; then
+    echo "Found pkg-config file: $PC_FILE"
+    
+    # Check OS to decide which C++ lib to inject
+    CPP_LIB="-lstdc++"
+    if [ "$OS_NAME" = "Darwin" ]; then
+        CPP_LIB="-lc++"
+    fi
+
+    # Check if already present
+    if ! grep -q -- "$CPP_LIB" "$PC_FILE"; then
+        echo "Injecting $CPP_LIB into libvmaf.pc..."
+        # Replace '-lvmaf' with '-lvmaf -lstdc++' (or -lc++)
+        run_sed "s/-lvmaf/-lvmaf $CPP_LIB/g" "$PC_FILE"
+        checkStatus $? "Patching libvmaf.pc failed"
+    else
+        echo "C++ library already linked in .pc file."
+    fi
+else
+    echo "Warning: libvmaf.pc not found. Static linking might fail."
+fi
+
+echoSection "libvmaf Build Complete"
