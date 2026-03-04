@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# Build Script for libklvanc (VANC Processing Library)
+# Build Script for libklvanc (KLV Ancillary Data)
 # ==============================================================================
 # Part of FFmpeg Build Script
 # Licensed under Apache License, Version 2.0
@@ -41,7 +41,8 @@ mkdir -p "$TARGET_SRC_DIR"
 cd "$TARGET_SRC_DIR" || exit 1
 
 # 3. Download Source
-# URL: https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.1.2.0.tar.gz
+# URL: https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.1.6.0.tar.gz
+# Note: version file usually contains "1.6.0", but tag is "vid.obe.1.6.0"
 TARBALL="libklvanc-$VERSION.tar.gz"
 URL="https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.$VERSION.tar.gz"
 
@@ -58,12 +59,17 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Generating build system..."
-./autogen.sh
-checkStatus $? "Autogen failed"
+# Fix: Do not pass --clean --build to autogen.sh as standard autoreconf doesn't support them.
+if [ -x "./autogen.sh" ]; then
+    ./autogen.sh
+    checkStatus $? "Autogen failed"
+else
+    echo "autogen.sh not found, running autoreconf manually..."
+    autoreconf -fiv
+    checkStatus $? "Autoreconf failed"
+fi
 
 echo "Configuring libklvanc..."
-# Flags:
-# --enable-static / --disable-shared: Static linking requirement.
 ./configure \
     --prefix="$TOOL_DIR" \
     --enable-static \
