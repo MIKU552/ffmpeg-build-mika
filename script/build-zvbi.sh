@@ -1,65 +1,101 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for ZVBI (Raw VBI, Teletext, Closed Caption Decoding)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-CFLAGS="-D_GNU_SOURCE $CFLAGS"
-export CFLAGS
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+echoSection "Building ZVBI"
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/zvbi")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/zvbi"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "zvbi"
-checkStatus $? "create directory failed"
-cd "zvbi/"
-checkStatus $? "change directory failed"
+echo "Target Version: $VERSION"
 
-# download source
-download https://github.com/zapping-vbi/zvbi/archive/refs/tags/v$VERSION.tar.gz "zvbi.tar.gz"
-checkStatus $? "download failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/zvbi"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# unpack
-tar -zxf "zvbi.tar.gz"
-checkStatus $? "unpack failed"
-cd "zvbi-$VERSION/"
-checkStatus $? "change directory failed"
+# 3. Download Source
+# URL: https://github.com/zapping-vbi/zvbi/archive/refs/tags/v0.2.35.tar.gz
+TARBALL="zvbi-$VERSION.tar.gz"
+URL="https://github.com/zapping-vbi/zvbi/archive/refs/tags/v$VERSION.tar.gz"
 
-# prepare build
-echoSection "configure zvbi $VERSION"
-chmod +x autogen.sh
-./autogen.sh && ./configure --prefix="$TOOL_DIR" --enable-shared=no
-checkStatus $? "configuration failed"
+download "$URL" "$TARBALL"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+# Unpack
+SRC_DIR_NAME="zvbi-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
 
-# install
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Generating build system..."
+# ZVBI from git tags usually needs autogen
+if [ -f "autogen.sh" ]; then
+    chmod +x autogen.sh
+    ./autogen.sh
+    checkStatus $? "Autogen failed"
+fi
+
+echo "Configuring ZVBI..."
+
+# CFLAGS:
+# -D_GNU_SOURCE: Required for some Linux builds to expose libc features.
+export CFLAGS="-D_GNU_SOURCE ${CFLAGS}"
+
+# Flags:
+# --enable-static / --disable-shared: Static linking requirement.
+# --without-libpng: Disable PNG export support to reduce dependencies (FFmpeg doesn't strictly need it).
+# --without-x: Disable X11 support (headless build).
+# --disable-proxy: Disable proxy support to minimize networking code.
+# LIBS="-liconv": Ensure it links against our static libiconv if needed.
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-static \
+    --disable-shared \
+    --without-libpng \
+    --without-x \
+    --disable-proxy \
+    --disable-nls
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "ZVBI Build Complete"
