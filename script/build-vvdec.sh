@@ -46,7 +46,7 @@ cd "$TARGET_SRC_DIR" || exit 1
 
 # 3. Download Source
 TARBALL="vvdec-${VERSION}.tar.gz"
-URL="https://github.com/fraunhoferhhi/vvdec/archive/v${VERSION}.tar.gz"
+URL="https://github.com/fraunhoferhhi/vvdec/archive/${VERSION}.tar.gz"
 
 download "$URL" "$TARBALL"
 
