@@ -1,63 +1,96 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for AOM (Alliance for Open Media AV1 Codec)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/aom")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+echoSection "Building AOM (libaom)"
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "aom"
-checkStatus $? "create directory failed"
-cd "aom/"
-checkStatus $? "change directory failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/aom"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found at $VERSION_FILE"
+    exit 1
+fi
 
-# download source
-download https://storage.googleapis.com/aom-releases/libaom-$VERSION.tar.gz "libaom.tar.gz"
-checkStatus $? "download failed"
+echo "Target Version: $VERSION"
 
-# unpack
-tar -zxf "libaom.tar.gz"
-checkStatus $? "unpack failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/aom"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# prepare build
-mkdir aom_build
-checkStatus $? "create build directory failed"
-cd aom_build
-checkStatus $? "change build directory failed"
-# Enable LTO for AOM
-cmake -DCMAKE_INSTALL_PREFIX:PATH=$TOOL_DIR -DENABLE_TESTS=0 -DENABLE_LTO=1 ../libaom-$VERSION/
-checkStatus $? "configuration failed"
+# 3. Download Source
+# URL format: https://storage.googleapis.com/aom-releases/libaom-3.6.1.tar.gz
+TARBALL="libaom-$VERSION.tar.gz"
+URL="https://storage.googleapis.com/aom-releases/libaom-$VERSION.tar.gz"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+download "$URL" "$TARBALL"
 
-# install
+# Unpack
+tar -zxf "$TARBALL"
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+# Note: Source extracts to libaom-$VERSION
+SOURCE_SUBDIR="libaom-$VERSION"
+if [ ! -d "$SOURCE_SUBDIR" ]; then
+    echo "Error: Expected source directory $SOURCE_SUBDIR not found."
+    exit 1
+fi
+
+mkdir -p aom_build
+cd aom_build || exit 1
+
+echo "Configuring libaom..."
+
+# Flags:
+# - DENABLE_TESTS=0: Skip building tests to save time.
+# - DENABLE_DOCS=0: Skip documentation.
+# - DENABLE_EXAMPLES=0: Skip example binaries.
+# - DENABLE_LTO=1: Enable Link Time Optimization (performance).
+# - DBUILD_SHARED_LIBS=OFF: Build static library.
+# - DENABLE_NASM=ON: Enable assembly optimizations (requires nasm).
+cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
+      -DENABLE_TESTS=0 \
+      -DENABLE_DOCS=0 \
+      -DENABLE_EXAMPLES=0 \
+      -DENABLE_LTO=1 \
+      -DBUILD_SHARED_LIBS=OFF \
+      -DENABLE_NASM=ON \
+      ../$SOURCE_SUBDIR
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "AOM Build Complete"
