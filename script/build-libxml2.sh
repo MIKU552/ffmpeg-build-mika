@@ -1,68 +1,103 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for libxml2 (XML Parser)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
-
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libxml2")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "libxml2"
-checkStatus $? "create directory failed"
-cd "libxml2/"
-checkStatus $? "change directory failed"
-
-# download source
-download https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$VERSION/libxml2-v$VERSION.tar.gz "libxml2.tar.gz"
-checkStatus $? "download failed"
-
-# unpack
-tar -zxf "libxml2.tar.gz"
-checkStatus $? "unpack failed"
-cd "libxml2-v$VERSION/"
-checkStatus $? "change directory failed"
-
-# check for pre-generated configure file
-if [ -f "configure" ]; then
-    echo "use existing configure file"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
 else
-    ACLOCAL_PATH=$TOOL_DIR/share/aclocal NOCONFIGURE=YES ./autogen.sh
-    checkStatus $? "autogen failed"
+    echo "Error: functions.sh not found."
+    exit 1
 fi
 
-# prepare build
-./configure --prefix="$TOOL_DIR" --enable-shared=no --without-python
-checkStatus $? "configuration failed"
+echoSection "Building libxml2"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/libxml2"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# install
+echo "Target Version: $VERSION"
+
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/libxml2"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
+
+# 3. Download Source
+# URL: https://gitlab.gnome.org/GNOME/libxml2/-/archive/v2.11.5/libxml2-v2.11.5.tar.gz
+TARBALL="libxml2-$VERSION.tar.gz"
+URL="https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$VERSION/libxml2-v$VERSION.tar.gz"
+
+download "$URL" "$TARBALL"
+
+# Unpack
+SRC_DIR_NAME="libxml2-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Generate Build System
+cd "$SRC_DIR_NAME" || exit 1
+
+# If downloading from Git tags, 'configure' script is often missing.
+if [ ! -f "configure" ]; then
+    echo "configure script not found. Running autogen.sh..."
+    # NOCONFIGURE=YES: Don't run configure yet, just generate it.
+    # ACLOCAL_PATH: Ensure it finds our toolchain's macros.
+    export ACLOCAL_PATH="$TOOL_DIR/share/aclocal"
+    NOCONFIGURE=YES ./autogen.sh
+    checkStatus $? "Autogen failed"
+fi
+
+# 5. Configure
+echo "Configuring libxml2..."
+
+# Flags:
+# --enable-static / --disable-shared: Static linking requirement.
+# --without-python: No Python bindings needed.
+# --with-ftp=no / --with-http=no: Disable internal network stack (FFmpeg handles IO).
+# --with-legacy=no: Disable deprecated APIs.
+# --without-lzma: Reduce dependency complexity (optional).
+# --with-zlib: Enable zlib support (using our static zlib).
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-static \
+    --disable-shared \
+    --without-python \
+    --with-ftp=no \
+    --with-http=no \
+    --with-legacy=no \
+    --without-lzma \
+    --with-zlib="$TOOL_DIR"
+
+checkStatus $? "Configuration failed"
+
+# 6. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 7. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "libxml2 Build Complete"
