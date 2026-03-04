@@ -13,6 +13,7 @@
 # ==============================================================================
 
 # 1. Argument Processing
+echo "Arguments: $@"
 SCRIPT_DIR="$1"
 SOURCE_DIR="$2"
 TOOL_DIR="$3"
@@ -49,7 +50,6 @@ cd "$TARGET_SRC_DIR" || exit 1
 
 # 3. Download Source
 # GitLab Archive URL pattern works for both tags and commit hashes:
-# https://gitlab.com/User/Project/-/archive/COMMIT_OR_TAG/Project-COMMIT_OR_TAG.tar.gz
 TARBALL="SVT-AV1-${COMMIT_ID}.tar.gz"
 URL="https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/${COMMIT_ID}/SVT-AV1-${COMMIT_ID}.tar.gz"
 
@@ -57,8 +57,7 @@ download "$URL" "$TARBALL"
 
 # 4. Unpack
 # CRITICAL: We use --strip-components=1 because the top-level folder name 
-# inside the tarball changes based on the commit hash (e.g., SVT-AV1-a1b2c3d...).
-# This ensures files land directly in our $TARGET_SRC_DIR.
+# changes based on commit hash.
 tar -zxf "$TARBALL" --strip-components=1
 checkStatus $? "Unpack failed"
 rm "$TARBALL"
@@ -73,18 +72,19 @@ echo "Patching $PGO_CMAKE_FILE for compressed training assets..."
 
 if [ -f "$PGO_CMAKE_FILE" ]; then
     # 1. Update extension check from .y4m to .y4m.xz
-    # Using regex to match variations in spacing or quotes
     run_sed 's/\.y4m/.y4m.xz/g' "$PGO_CMAKE_FILE"
 
     # 2. Inject 'xz -dc |' pipe
     # Finds the line executing SvtAv1EncApp and prepends the decompression command
     # Matches: ${SvtAv1EncApp} -i ${video} ...
+    # Note: We match strictly to ensure we are patching the command execution line
     run_sed 's/\${SvtAv1EncApp} -i \${video}/xz -dc \${video} | \${SvtAv1EncApp} -i -/g' "$PGO_CMAKE_FILE"
 
     # 3. Add --lookahead 120 (Recommended for PGO quality)
     run_sed 's/--film-grain 8/--film-grain 8 --lookahead 120/g' "$PGO_CMAKE_FILE"
     
-    # 4. Wrap command in 'sh -c' to support pipes
+    # 4. Wrap command in 'sh -c' to support pipes if on Linux/Unix
+    # This allows the pipe | character to function within the cmake execute_process
     run_sed 's/\${ENCODING_COMMAND}/sh -c "\${ENCODING_COMMAND}"/g' "$PGO_CMAKE_FILE"
     
     checkStatus $? "Patching pgohelper.cmake failed"
@@ -120,8 +120,9 @@ if [ "$OS_NAME" = "Darwin" ]; then
     fi
 fi
 
-# 6. Configure & Build
+# 6. Configure
 # ------------------------------------------------------------------------------
+# Create a separate build directory (standard CMake practice)
 mkdir -p build
 cd build || exit 1
 
@@ -131,12 +132,13 @@ echo "Configuring CMake..."
 # - BUILD_SHARED_LIBS=OFF: Static linking is required for our FFmpeg build.
 # - SVT_AV1_PGO=ON: Enables the 'RunPGO' target.
 # - SVT_AV1_LTO=ON: Link Time Optimization for performance.
+# - BUILD_APPS=ON: REQUIRED for PGO. The encoder binary is needed to run the profile training.
 # shellcheck disable=SC2086
 cmake \
     -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=OFF \
-    -DBUILD_APPS=OFF \
+    -DBUILD_APPS=ON \
     -DSVT_AV1_LTO=ON \
     -DSVT_AV1_PGO=ON \
     -DSVT_AV1_PGO_CUSTOM_VIDEOS="$SCRIPT_DIR/../sample" \
@@ -150,12 +152,15 @@ checkStatus $? "CMake Configuration failed"
 echoSection "Running PGO Training (make RunPGO)"
 echo "Compiling instrumented encoder -> Running training videos -> Compiling optimized encoder"
 
+# 'RunPGO' target handles the entire Generate -> Train -> Use cycle
 make RunPGO -j "$CPUS"
 checkStatus $? "PGO Training failed"
 
 # 8. Install
 # ------------------------------------------------------------------------------
 echoSection "Installing SVT-AV1"
+# This will install headers, libs, AND the SvtAv1EncApp binary.
+# FFmpeg will only use the headers and .a library.
 make install
 checkStatus $? "Installation failed"
 
