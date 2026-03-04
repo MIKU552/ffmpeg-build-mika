@@ -42,6 +42,7 @@ cd "$TARGET_SRC_DIR" || exit 1
 
 # 3. Download Source
 # URL: https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.1.6.0.tar.gz
+# Use the exact URL structure from the working original script
 TARBALL="libklvanc-$VERSION.tar.gz"
 URL="https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.$VERSION.tar.gz"
 
@@ -50,6 +51,7 @@ download "$URL" "$TARBALL"
 # Unpack
 SRC_DIR_NAME="libklvanc-src"
 mkdir -p "$SRC_DIR_NAME"
+# Use strip-components to handle the directory structure cleanly
 tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
 checkStatus $? "Unpack failed"
 rm "$TARBALL"
@@ -59,18 +61,18 @@ cd "$SRC_DIR_NAME" || exit 1
 
 echo "Generating build system..."
 
-# 【重点修改】绝对不要加 --clean --build 参数
-# 之前的报错就是因为 autogen.sh (调用 autoreconf) 不支持这些参数
 if [ -x "./autogen.sh" ]; then
     ./autogen.sh
     checkStatus $? "Autogen failed"
 else
+    # Fallback if autogen.sh is missing (unlikely based on logs)
     echo "autogen.sh not found, running autoreconf manually..."
     autoreconf -fiv
     checkStatus $? "Autoreconf failed"
 fi
 
 echo "Configuring libklvanc..."
+# Match the working original script's logic: --enable-shared=no (equivalent to --disable-shared)
 ./configure \
     --prefix="$TOOL_DIR" \
     --enable-static \
