@@ -3,9 +3,9 @@
 # ==============================================================================
 # Build Script for libklvanc (KLV Ancillary Data)
 # ==============================================================================
-# Part of FFmpeg Build Script
-# Licensed under Apache License, Version 2.0
-# ==============================================================================
+
+# 0. DEBUG MARKER
+echo "=== DEBUG: VERSION 2026-FIXED (REVERT TO ORIGINAL LOGIC) ==="
 
 # 1. Argument Processing
 echo "Arguments: $@"
@@ -41,8 +41,6 @@ mkdir -p "$TARGET_SRC_DIR"
 cd "$TARGET_SRC_DIR" || exit 1
 
 # 3. Download Source
-# URL: https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.1.6.0.tar.gz
-# Use the exact URL structure from the working original script
 TARBALL="libklvanc-$VERSION.tar.gz"
 URL="https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.$VERSION.tar.gz"
 
@@ -51,7 +49,6 @@ download "$URL" "$TARBALL"
 # Unpack
 SRC_DIR_NAME="libklvanc-src"
 mkdir -p "$SRC_DIR_NAME"
-# Use strip-components to handle the directory structure cleanly
 tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
 checkStatus $? "Unpack failed"
 rm "$TARBALL"
@@ -62,21 +59,20 @@ cd "$SRC_DIR_NAME" || exit 1
 echo "Generating build system..."
 
 if [ -x "./autogen.sh" ]; then
-    ./autogen.sh
+    echo "Running ./autogen.sh --build (As per original script)..."
+    ./autogen.sh --build
     checkStatus $? "Autogen failed"
 else
-    # Fallback if autogen.sh is missing (unlikely based on logs)
     echo "autogen.sh not found, running autoreconf manually..."
     autoreconf -fiv
     checkStatus $? "Autoreconf failed"
 fi
 
 echo "Configuring libklvanc..."
-# Match the working original script's logic: --enable-shared=no (equivalent to --disable-shared)
 ./configure \
     --prefix="$TOOL_DIR" \
-    --enable-static \
-    --disable-shared
+    --enable-shared=no \
+    --enable-static
 
 checkStatus $? "Configuration failed"
 
