@@ -46,7 +46,7 @@ cd "$TARGET_SRC_DIR" || exit 1
 
 # 3. Download Source
 TARBALL="vvenc-${VERSION}.tar.gz"
-URL="https://github.com/fraunhoferhhi/vvenc/archive/v${VERSION}.tar.gz"
+URL="https://github.com/fraunhoferhhi/vvenc/archive/${VERSION}.tar.gz"
 # Note: GitHub archives often drop the 'v' in the folder name inside, e.g., vvenc-1.0.0
 # We use --strip-components=1 to be safe.
 
