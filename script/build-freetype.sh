@@ -1,69 +1,95 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for FreeType (Font Rendering Engine)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# $1 = script directory
-# $2 = working directory
-# $3 = tool directory
-# $4 = CPUs
-
-# load functions
-. $SCRIPT_DIR/functions.sh
-
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/freetype")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "freetype"
-checkStatus $? "create directory failed"
-cd "freetype/"
-checkStatus $? "change directory failed"
-
-# download source
-download https://download.savannah.gnu.org/releases/freetype/freetype-$VERSION.tar.gz "freetype.tar.gz"
-if [ $? -ne 0 ]; then
-    echo "download failed; start download from mirror server"
-    download https://sourceforge.net/projects/freetype/files/freetype2/$VERSION/freetype-$VERSION.tar.gz/download "freetype.tar.gz"
-    checkStatus $? "download failed"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
 fi
 
-# unpack
-tar -zxf "freetype.tar.gz"
-checkStatus $? "unpack failed"
-cd "freetype-$VERSION/"
-checkStatus $? "change directory failed"
+echoSection "Building FreeType"
 
-# prepare build
-./configure --prefix="$TOOL_DIR" --enable-shared=no
-checkStatus $? "configuration failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/freetype"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+echo "Target Version: $VERSION"
 
-# install
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/freetype"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
+
+# 3. Download Source
+# Try GNU Savannah first, fallback to SourceForge
+TARBALL="freetype-${VERSION}.tar.gz"
+PRIMARY_URL="https://download.savannah.gnu.org/releases/freetype/freetype-${VERSION}.tar.gz"
+MIRROR_URL="https://sourceforge.net/projects/freetype/files/freetype2/${VERSION}/freetype-${VERSION}.tar.gz/download"
+
+echo "Downloading source..."
+if curl -L -f --retry 3 --connect-timeout 10 -o "$TARBALL" "$PRIMARY_URL"; then
+    echo "Download successful from primary mirror."
+else
+    echo "Primary download failed. Trying backup mirror (SourceForge)..."
+    download "$MIRROR_URL" "$TARBALL"
+fi
+
+# Unpack
+SRC_DIR_NAME="freetype-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring FreeType..."
+
+# Flags:
+# --enable-static / --disable-shared: Static linking requirement.
+# --without-harfbuzz: Break circular dependency (HarfBuzz depends on FreeType).
+# --without-png: Disable PNG support to avoid linking against system libpng (portability).
+# --with-zlib=yes: Use the zlib we built (found via pkg-config/tool-dir).
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-static \
+    --disable-shared \
+    --with-zlib=yes \
+    --without-harfbuzz \
+    --without-png \
+    --without-bzip2
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "FreeType Build Complete"
