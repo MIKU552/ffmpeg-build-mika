@@ -42,7 +42,6 @@ cd "$TARGET_SRC_DIR" || exit 1
 
 # 3. Download Source
 # URL: https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.1.6.0.tar.gz
-# Note: version file usually contains "1.6.0", but tag is "vid.obe.1.6.0"
 TARBALL="libklvanc-$VERSION.tar.gz"
 URL="https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.$VERSION.tar.gz"
 
@@ -59,7 +58,9 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Generating build system..."
-# Fix: Do not pass --clean --build to autogen.sh as standard autoreconf doesn't support them.
+
+# 【重点修改】绝对不要加 --clean --build 参数
+# 之前的报错就是因为 autogen.sh (调用 autoreconf) 不支持这些参数
 if [ -x "./autogen.sh" ]; then
     ./autogen.sh
     checkStatus $? "Autogen failed"
