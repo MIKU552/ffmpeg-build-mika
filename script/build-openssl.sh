@@ -1,64 +1,95 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for OpenSSL (Cryptography and SSL/TLS)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/openssl")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+echoSection "Building OpenSSL"
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "openssl"
-checkStatus $? "create directory failed"
-cd "openssl/"
-checkStatus $? "change directory failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/openssl"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# download source
-download https://github.com/openssl/openssl/releases/download/openssl-$VERSION/openssl-$VERSION.tar.gz "openssl.tar.gz"
-checkStatus $? "download failed"
+echo "Target Version: $VERSION"
 
-# unpack
-tar -zxf "openssl.tar.gz"
-checkStatus $? "unpack failed"
-cd "openssl-$VERSION/"
-checkStatus $? "change directory failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/openssl"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# prepare build
-# use custom lib path, because for any reason on linux amd64 installs otherwise in lib64 instead
-./config --prefix="$TOOL_DIR" --openssldir="$TOOL_DIR/openssl" --libdir="$TOOL_DIR/lib" no-shared
-checkStatus $? "configuration failed"
+# 3. Download Source
+# URL: https://github.com/openssl/openssl/releases/download/openssl-3.1.2/openssl-3.1.2.tar.gz
+TARBALL="openssl-$VERSION.tar.gz"
+URL="https://github.com/openssl/openssl/releases/download/openssl-$VERSION/openssl-$VERSION.tar.gz"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+download "$URL" "$TARBALL"
 
-# install
-## install without documentation
+# Unpack
+SRC_DIR_NAME="openssl-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring OpenSSL..."
+
+# Flags:
+# --prefix: Install root.
+# --openssldir: Configuration directory (certs, private keys).
+# --libdir=lib: Force install to 'lib' directory (avoids lib64 issues).
+# no-shared: Build static libraries only.
+# no-dso: Disable dynamic loading (not needed for static).
+# no-tests: Skip building tests (saves significant time).
+./config \
+    --prefix="$TOOL_DIR" \
+    --openssldir="$TOOL_DIR/ssl" \
+    --libdir=lib \
+    no-shared \
+    no-dso \
+    no-tests
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
+
+# install_sw: Install Software (headers, libs, bins) but NOT docs.
+# install_ssldirs: Create the certs/private directory structure.
 make install_sw
-checkStatus $? "installation failed (install_sw)"
+checkStatus $? "Installation (software) failed"
+
 make install_ssldirs
-checkStatus $? "installation failed (install_ssldirs)"
+checkStatus $? "Installation (ssl dirs) failed"
+
+echoSection "OpenSSL Build Complete"
