@@ -224,7 +224,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           brew update
-          brew install automake libtool cmake ninja nasm pkg-config ccache wget xz
+          brew install automake libtool ccache
 
       # --- 3. Rust Environment ---
       - name: Install Rust Toolchain
