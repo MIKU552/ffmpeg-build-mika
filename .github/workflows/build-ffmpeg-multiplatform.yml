@@ -5,9 +5,9 @@ name: FFmpeg Multi-Platform CI
 # ==============================================================================
 on:
   push:
-    branches: [ "refactor" ]
+    branches: [ "MIX" ]
   pull_request:
-    branches: [ "refactor" ]
+    branches: [ "MIX" ]
   workflow_dispatch:
 
 # ==============================================================================
