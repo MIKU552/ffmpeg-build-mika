@@ -171,14 +171,18 @@ train_generator() {
     
     echo "Training $bit_depth-bit in $dir..."
     
-    # Save current directory
     local current_dir=$(pwd)
-    
     cd "$dir" || return
     
     for sample in "${samples[@]}"; do
         if [ -f "$sample_dir/$sample" ]; then
             echo "Running x265 training on $sample ($bit_depth-bit)..."
+            
+            # NOTE: We must use strictly valid x265 CLI arguments here.
+            # Removed: --gop-lookahead (not a valid standalone CLI arg)
+            # Removed: =1 suffixes for boolean flags (use --flag instead)
+            # Removed: > /dev/null 2>&1 so we can actually see errors if it crashes!
+            
             xz -dc "$sample_dir/$sample" | ./x265 \
                 --y4m \
                 --input - \
@@ -189,15 +193,19 @@ train_generator() {
                 --pmode \
                 --no-info \
                 --rc-lookahead 250 \
-                --gop-lookahead 50 \
-                --open-gop > /dev/null 2>&1
+                --open-gop
+                
+            # If x265 crashes, fail loudly
+            if [ ${PIPESTATUS[1]} -ne 0 ]; then
+                echo "ERROR: x265 training crashed on $sample!"
+                exit 1
+            fi
         else
             echo "Warning: Sample $sample not found in $sample_dir. Skipping."
         fi
     done
     echo "$bit_depth-bit training done."
     
-    # Restore directory
     cd "$current_dir" || return
 }
 
