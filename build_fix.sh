@@ -480,7 +480,7 @@ run_build "libklvanc"  "build-libklvanc"  "libklvanc.a"    "libklvanc"  "--enabl
 run_build "aom"        "build-aom"        "libaom.a"       "aom"        "--enable-libaom" "NO" "NO"
 run_build "dav1d"      "build-dav1d"      "libdav1d.a"     "dav1d"      "--enable-libdav1d" "NO" "NO"
 run_build "openh264"   "build-openh264"   "libopenh264.a"  "openh264"   "--enable-libopenh264" "NO" "NO"
-run_build "openJPEG"   "build-openjpeg"   "libopenjp2.a"   "openjpeg"   "--enable-libopenjpeg" "NO" "NO"
+run_build "openjpeg"   "build-openjpeg"   "libopenjp2.a"   "openjpeg"   "--enable-libopenjpeg" "NO" "NO"
 run_build "rav1e"      "build-rav1e"      "librav1e.a"     "rav1e"      "--enable-librav1e" "NO" "NO"
 run_build "svt-av1"    "build-svt-av1"    "libSvtAv1Enc.a" "svt-av1"    "--enable-libsvtav1" "NO" "NO"
 run_build "vpx"        "build-vpx"        "libvpx.a"       "vpx"        "--enable-libvpx" "NO" "NO"
