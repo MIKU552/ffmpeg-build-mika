@@ -366,7 +366,7 @@ jobs:
           NOTES_FILE="release_notes.md"
           echo "### ~~最新最热的 FFmpeg~~" > $NOTES_FILE
           echo "编译于 \`${CURRENT_TIME}\`。视频编码库均选用最新的 commit，其余库使用的则是最新的 release。" >> $NOTES_FILE
-          echo "其中 x265, SVT-AV1, VVenC, VVdeC 编译开启了 LTO 优化和 PGO 优化，FFmpeg 开启了 LTO 优化。" >> $NOTES_FILE
+          echo "其中 x265, SVT-AV1, VVenC 编译开启了 LTO 优化和 PGO 优化，FFmpeg 开启了 LTO 优化。" >> $NOTES_FILE
           echo "" >> $NOTES_FILE
           echo "Compiled on \`${CURRENT_TIME}\`. Video encoding libraries use the latest commit, while other libraries use the latest release." >> $NOTES_FILE
           echo "x265, SVT-AV1, VVenC, and VVdeC are compiled with LTO and PGO enabled. FFmpeg is compiled with LTO enabled." >> $NOTES_FILE
