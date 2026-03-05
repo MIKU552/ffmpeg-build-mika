@@ -96,7 +96,9 @@ if [ "$OS_NAME" = "Darwin" ]; then
     fi
 else
     # Linux (GCC)
-    PGO_GEN_FLAGS="-fprofile-generate"
+    # ADDED -fprofile-update=atomic to prevent data races and corrupted negative
+    # counters when vvencapp trains using multiple threads.
+    PGO_GEN_FLAGS="-fprofile-generate -fprofile-update=atomic"
     PGO_GEN_CFLAGS="$PGO_GEN_FLAGS"
     PGO_GEN_CXXFLAGS="$PGO_GEN_FLAGS"
 fi
@@ -155,8 +157,9 @@ if [ "$ENABLE_PGO" = "YES" ]; then
         rm -rf $BUILD_DIR install-pgo
         FINAL_BUILD_DIR="build-final"
     else
-        PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch"
-        PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch"
+        # Added -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than
+        PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
+        PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
         # CRITICAL FIX: For Linux GCC, we MUST re-use the exact same build directory
         # so CMake triggers a recompile that overwrites .o but reads the .gcda files.
         FINAL_BUILD_DIR="$BUILD_DIR"
