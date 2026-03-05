@@ -8,7 +8,7 @@
 #
 # Features:
 #   - Supports building from specific Git Commit Hash or Release Tag
-#   - Automated PGO (Profile-Guided Optimization)
+#   - Automated PGO (Profile-Guided Optimization) tailored to custom params
 #   - Robust sample handling (Decompresses samples to avoid CMake pipe errors)
 # ==============================================================================
 
@@ -67,8 +67,6 @@ PGO_SAMPLE_DIR="$SOURCE_DIR/svt_pgo_samples"
 mkdir -p "$PGO_SAMPLE_DIR"
 
 # Only prepare samples if we are actually going to run PGO
-# (We assume PGO is enabled if we are here, based on main script logic, 
-#  but let's check if samples exist)
 SAMPLE_SOURCE_DIR="$SCRIPT_DIR/../sample"
 
 if [ -d "$SAMPLE_SOURCE_DIR" ]; then
@@ -88,14 +86,17 @@ else
     echo "Warning: Sample directory not found. PGO might fail or be skipped."
 fi
 
-# 6. Apply CMake Patches (Minor tweaks only)
+# 6. Apply CMake Patches for PGO Parameters
 # ------------------------------------------------------------------------------
 PGO_CMAKE_FILE="Build/pgohelper.cmake"
 if [ -f "$PGO_CMAKE_FILE" ]; then
-    echo "Applying parameter patches to $PGO_CMAKE_FILE..."
-    # We still want to add --lookahead 120 for better quality PGO data, 
-    # but we REMOVED the pipe logic causing the syntax error.
-    run_sed 's/--film-grain 8/--film-grain 8 --lookahead 120/g' "$PGO_CMAKE_FILE"
+    echo "Applying custom PGO target parameters to $PGO_CMAKE_FILE..."
+    
+    # We forcefully overwrite the default encoding command in the CMake script.
+    # We strip out whatever defaults the SVT-AV1 team put in and inject our 
+    # exact production workload: --preset 2 --lookahead 120 --tune 0
+    # Regex explanation: Matches ${SvtAv1EncApp} up to the closing parenthesis ')'
+    run_sed 's/\${SvtAv1EncApp}[^)]*/\${SvtAv1EncApp} -i \${video} -b \${output_ivf} --preset 2 --lookahead 120 --tune 0/g' "$PGO_CMAKE_FILE"
 fi
 
 # macOS Specific Configurations
