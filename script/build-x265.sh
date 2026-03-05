@@ -170,20 +170,20 @@ train_generator() {
     local samples=("stefan_sif.y4m.xz" "taikotemoto.y4m.xz" "720p_bbb.y4m.xz" "4k_bbb.y4m.xz")
     
     echo "Training $bit_depth-bit in $dir..."
+    
+    # Save current directory
+    local current_dir=$(pwd)
+    
     cd "$dir" || return
     
     for sample in "${samples[@]}"; do
         if [ -f "$sample_dir/$sample" ]; then
-            # Use user-provided parameters:
-            # - preset veryslow, crf 28
-            # - pmode, no-info, rc-lookahead 250, gop-lookahead 50, open-gop
-            # - Added --frames 50 to prevent CI timeouts due to veryslow preset
             echo "Running x265 training on $sample ($bit_depth-bit)..."
             xz -dc "$sample_dir/$sample" | ./x265 \
                 --y4m \
                 --input - \
                 --output /dev/null \
-                # --frames 50 \
+                --frames 50 \
                 --preset veryslow \
                 --crf 28 \
                 --pmode \
@@ -196,11 +196,12 @@ train_generator() {
         fi
     done
     echo "$bit_depth-bit training done."
+    
+    # Restore directory
+    cd "$current_dir" || return
 }
 
-# Run training sequentially instead of background jobs (&) 
-# because 'veryslow' preset is extremely CPU intensive. 
-# Running 8, 10, and 12-bit training simultaneously will cause memory/CPU thrashing.
+# Run training sequentially
 train_generator "8"
 
 if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
@@ -208,6 +209,7 @@ if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
     train_generator "12"
 fi
 
+# We don't need 'wait' anymore since we removed the '&' background jobs.
 checkStatus $? "PGO Training failed"
 
 # 8. PGO Step 3: Process Profiles
