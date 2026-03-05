@@ -127,12 +127,20 @@ if [ "$ENABLE_PGO" = "YES" ]; then
     
     for sample in "${SAMPLES[@]}"; do
         echo "Training on $sample..."
-        # User params translated to vvencapp native flags:
-        # -preset 3, -qp 26, WaveFrontSynchro=1
-        # Added --threads $CPUS to avoid freezing CI.
-        # Added --frames 30 because VVC preset 3 (slow) is extremely compute-heavy.
+        
+        # NOTE: 
+        # 1. vvencapp strictly requires the output file to end with .266, .vvc, or .bin
+        #    so we use /dev/null.266 (which Linux/macOS will still happily discard into the void).
+        # 2. Removed `-c WaveFrontSynchro=1` as it causes a parsing error in the latest vvencapp.
+        
         xz -dc "$SAMPLE_DIR/$sample" | \
-        $APP -i - --y4m --preset 3 -q 26 -c WaveFrontSynchro=1 --threads "$CPUS" -o /dev/null
+        $APP -i - --y4m --preset 3 -q 26 --threads "$CPUS" --frames 30 -o /dev/null.266
+        
+        # Fail loudly if it crashes
+        if [ ${PIPESTATUS[1]} -ne 0 ]; then
+            echo "ERROR: vvencapp training crashed on $sample!"
+            exit 1
+        fi
     done
     
     echoSection "PGO Step 3: Processing Profiles"
