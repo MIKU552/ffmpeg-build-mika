@@ -120,8 +120,10 @@ if [ "$OS_NAME" = "Darwin" ]; then
 else
     PGO_GEN_CFLAGS="-fprofile-generate"
     PGO_GEN_CXXFLAGS="-fprofile-generate"
-    PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile"
-    PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile"
+    # Added -Wno-coverage-mismatch to ignore branching changes caused by LINKED_10BIT macros
+    # Added -Wno-alloc-size-larger-than to suppress GCC 13+ false positives during PGO inlining
+    PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
+    PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
     NASM_FLAGS="-DENABLE_CET=0"
 fi
 
