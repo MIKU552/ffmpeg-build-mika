@@ -8,11 +8,12 @@
 #
 # Features:
 #   - H.266/VVC Encoding Support
-#   - Profile-Guided Optimization (PGO)
+#   - Profile-Guided Optimization (PGO) tailored to custom parameters
 #   - Cross-platform build (Linux GCC / macOS Clang)
 # ==============================================================================
 
 # 1. Argument Processing
+echo "Arguments: $@"
 SCRIPT_DIR="$1"
 SOURCE_DIR="$2"
 TOOL_DIR="$3"
@@ -47,8 +48,6 @@ cd "$TARGET_SRC_DIR" || exit 1
 # 3. Download Source
 TARBALL="vvenc-${VERSION}.tar.gz"
 URL="https://github.com/fraunhoferhhi/vvenc/archive/${VERSION}.tar.gz"
-# Note: GitHub archives often drop the 'v' in the folder name inside, e.g., vvenc-1.0.0
-# We use --strip-components=1 to be safe.
 
 download "$URL" "$TARBALL"
 
@@ -61,7 +60,6 @@ cd "$SRC_DIR_NAME" || exit 1
 
 # 4. PGO Configuration
 # ------------------------------------------------------------------------------
-# Define flags for PGO instrumentation and usage
 PGO_GEN_CFLAGS=""
 PGO_GEN_CXXFLAGS=""
 PGO_USE_CFLAGS=""
@@ -85,7 +83,6 @@ if [ "$OS_NAME" = "Darwin" ]; then
     PGO_GEN_CFLAGS="$PGO_GEN_FLAGS"
     PGO_GEN_CXXFLAGS="$PGO_GEN_FLAGS"
     
-    # Locate llvm-profdata
     if command -v llvm-profdata >/dev/null 2>&1; then
         LLVM_PROFDATA="llvm-profdata"
     else
@@ -94,7 +91,7 @@ if [ "$OS_NAME" = "Darwin" ]; then
     fi
     
     if [ ! -x "$LLVM_PROFDATA" ] && [ "$ENABLE_PGO" = "YES" ]; then
-        echo "Warning: llvm-profdata not found. Disabling PGO."
+        echo "Warning: llvm-profdata missing. Disabling PGO."
         ENABLE_PGO="NO"
     fi
 else
@@ -109,9 +106,10 @@ fi
 if [ "$ENABLE_PGO" = "YES" ]; then
     echoSection "PGO Step 1: Instrumentation"
     
-    mkdir -p build-pgo
-    # Configure instrumented build
-    cmake -S . -B build-pgo -G Ninja \
+    BUILD_DIR="build-pgo"
+    mkdir -p $BUILD_DIR
+    
+    cmake -S . -B $BUILD_DIR -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$(pwd)/install-pgo" \
         -DBUILD_SHARED_LIBS=OFF \
@@ -120,46 +118,46 @@ if [ "$ENABLE_PGO" = "YES" ]; then
         
     checkStatus $? "PGO Config failed"
     
-    # Build & Install to local temp prefix
-    cmake --build build-pgo -j "$CPUS"
+    cmake --build $BUILD_DIR -j "$CPUS"
     checkStatus $? "PGO Build failed"
-    cmake --install build-pgo
+    cmake --install $BUILD_DIR
     
-    echoSection "PGO Step 2: Training"
-    # Run the encoder on samples
+    echoSection "PGO Step 2: Training (Custom Encoding Parameters)"
     APP="./install-pgo/bin/vvencapp"
     
     for sample in "${SAMPLES[@]}"; do
         echo "Training on $sample..."
-        # Pipe xz -> vvencapp, discard output bitstream (-o /dev/null)
+        # User params translated to vvencapp native flags:
+        # -preset 3, -qp 26, WaveFrontSynchro=1
+        # Added --threads $CPUS to avoid freezing CI.
+        # Added --frames 30 because VVC preset 3 (slow) is extremely compute-heavy.
         xz -dc "$SAMPLE_DIR/$sample" | \
-        $APP -i - --y4m --preset fast --frames 100 -o /dev/null
-        # Note: Reduced frames/preset for speed, adjust as needed for quality
+        $APP -i - --y4m --preset 3 -q 26 -c WaveFrontSynchro=1 --threads "$CPUS" -o /dev/null
     done
     
     echoSection "PGO Step 3: Processing Profiles"
     
     if [ "$OS_NAME" = "Darwin" ]; then
-        # Merge raw profiles
         $LLVM_PROFDATA merge -o default.profdata ./*.profraw
         checkStatus $? "Profile merge failed"
         
-        # Set absolute path for Use flags
         ABS_PROF_PATH="$(pwd)/default.profdata"
         PGO_USE_CFLAGS="-fprofile-use=$ABS_PROF_PATH -Wno-backend-plugin"
         PGO_USE_CXXFLAGS="-fprofile-use=$ABS_PROF_PATH -Wno-backend-plugin"
         
-        # Cleanup
         rm ./*.profraw
+        rm -rf $BUILD_DIR install-pgo
+        FINAL_BUILD_DIR="build-final"
     else
-        # Linux GCC uses .gcda files in-place
         PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch"
         PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch"
+        # CRITICAL FIX: For Linux GCC, we MUST re-use the exact same build directory
+        # so CMake triggers a recompile that overwrites .o but reads the .gcda files.
+        FINAL_BUILD_DIR="$BUILD_DIR"
+        rm -rf install-pgo
     fi
-    
-    # Clean build directory for final build
-    rm -rf build-pgo install-pgo
 else
+    FINAL_BUILD_DIR="build-final"
     echo "Skipping PGO (Missing samples or tools)."
 fi
 
@@ -167,9 +165,10 @@ fi
 # ------------------------------------------------------------------------------
 echoSection "Final Optimized Build"
 
-mkdir -p build-final
-# Configure optimized build
-cmake -S . -B build-final -G Ninja \
+mkdir -p $FINAL_BUILD_DIR
+# By re-running CMake on the existing directory with new CFLAGS, 
+# Ninja will automatically rebuild affected object files using the profile data.
+cmake -S . -B $FINAL_BUILD_DIR -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
     -DBUILD_SHARED_LIBS=OFF \
@@ -179,11 +178,11 @@ cmake -S . -B build-final -G Ninja \
 
 checkStatus $? "Final Config failed"
 
-cmake --build build-final -j "$CPUS"
+cmake --build $FINAL_BUILD_DIR -j "$CPUS"
 checkStatus $? "Final Build failed"
 
 echo "Installing VVenC..."
-cmake --install build-final
+cmake --install $FINAL_BUILD_DIR
 checkStatus $? "Final Install failed"
 
 echoSection "VVenC Build Complete"
