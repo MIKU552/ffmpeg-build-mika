@@ -1,62 +1,89 @@
 #!/bin/bash
 
-# Copyright 2023 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for libklvanc (KLV Ancillary Data)
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 0. DEBUG MARKER
+echo "=== DEBUG: VERSION 2026-FIXED (REVERT TO ORIGINAL LOGIC) ==="
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libklvanc")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "libklvanc"
-checkStatus $? "create directory failed"
-cd "libklvanc/"
-checkStatus $? "change directory failed"
+echoSection "Building libklvanc"
 
-# download source
-download https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.$VERSION.tar.gz "libklvanc.tar.gz"
-checkStatus $? "download failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/libklvanc"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# unpack
-tar -zxf "libklvanc.tar.gz"
-checkStatus $? "unpack failed"
-cd "libklvanc-vid.obe.$VERSION/"
-checkStatus $? "change directory failed"
+echo "Target Version: $VERSION"
 
-# prepare build
-./autogen.sh --build
-checkStatus $? "autogen failed"
-./configure --prefix="$TOOL_DIR" --enable-shared=no
-checkStatus $? "configuration failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/libklvanc"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+# 3. Download Source
+TARBALL="libklvanc-$VERSION.tar.gz"
+URL="https://github.com/stoth68000/libklvanc/archive/refs/tags/vid.obe.$VERSION.tar.gz"
 
-# install
+download "$URL" "$TARBALL"
+
+# Unpack
+SRC_DIR_NAME="libklvanc-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Generating build system..."
+
+if [ -x "./autogen.sh" ]; then
+    echo "Running ./autogen.sh --build (As per original script)..."
+    ./autogen.sh --build
+    checkStatus $? "Autogen failed"
+else
+    echo "autogen.sh not found, running autoreconf manually..."
+    autoreconf -fiv
+    checkStatus $? "Autoreconf failed"
+fi
+
+echo "Configuring libklvanc..."
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-shared=no \
+    --enable-static
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "libklvanc Build Complete"

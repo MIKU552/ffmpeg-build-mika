@@ -1,93 +1,105 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-# Merged for Linux & macOS compatibility
+# ==============================================================================
+# Build Script for pkg-config (Library Helper)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-# Note: CPUS not used by original script
-
-# load functions
-# shellcheck source=/dev/null
-. "$SCRIPT_DIR/functions.sh"
-
-# --- OS Detection ---
-OS_NAME=$(uname)
-
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/pkg-config")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir -p "pkg-config" # Use -p
-cd "pkg-config/"
-checkStatus $? "change directory failed"
-
-# download source
-PKG_SUBDIR="pkg-config-src" # Use subdirectory
-mkdir -p "$PKG_SUBDIR"
-download https://pkg-config.freedesktop.org/releases/pkg-config-$VERSION.tar.gz "pkg-config.tar.gz"
-checkStatus $? "download of pkg-config failed"
-
-# unpack
-tar -zxf "pkg-config.tar.gz" -C "$PKG_SUBDIR" --strip-components=1
-checkStatus $? "unpack pkg-config failed"
-rm pkg-config.tar.gz # Clean up tarball
-cd "$PKG_SUBDIR/"
-checkStatus $? "change directory failed"
-
-# --- Windows specific stuff (Keep for reference, though not target platforms) ---
-DETECTED_OS_INTERNAL="$(uname -o 2> /dev/null)" # Use different var name
-echo "detected internal OS type: $DETECTED_OS_INTERNAL"
-if [ "$DETECTED_OS_INTERNAL" = "Msys" ]; then
-    echo "Windows (MSYS) specific patches would be applied here if needed."
-    # (Patch code omitted as Windows is not a target)
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
 fi
-# --- End Windows specific ---
 
+echoSection "Building pkg-config"
 
-# --- Add macOS specific CFLAGS ---
-CONFIGURE_CFLAGS=""
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/pkg-config"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
+
+OS_NAME=$(uname -s)
+echo "Target Version: $VERSION"
+
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/pkg-config"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
+
+# 3. Download Source
+# URL: https://pkg-config.freedesktop.org/releases/pkg-config-0.29.2.tar.gz
+TARBALL="pkg-config-$VERSION.tar.gz"
+URL="https://pkg-config.freedesktop.org/releases/pkg-config-$VERSION.tar.gz"
+
+download "$URL" "$TARBALL"
+
+# Unpack
+SRC_DIR_NAME="pkg-config-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring pkg-config..."
+
+# Compiler Flags:
+# The internal GLib used by pkg-config is old and triggers errors on modern Clang/GCC.
+# Specifically, strict integer conversion checks on macOS need to be relaxed.
+EXTRA_CFLAGS=""
 if [ "$OS_NAME" = "Darwin" ]; then
-    echo "Adding -Wno-int-conversion CFLAG for macOS glib build"
-    CONFIGURE_CFLAGS="CFLAGS=-Wno-int-conversion"
+    echo "Applying macOS compatibility flags..."
+    EXTRA_CFLAGS="-Wno-int-conversion"
 fi
 
-# prepare build
-# Construct pkg-config search path carefully, including potential lib64
-PKG_CONFIG_SEARCH_PATH="$TOOL_DIR/lib/pkgconfig"
+# Search Paths:
+# We strictly define where pkg-config should look for .pc files.
+# By default, we only want it to look in our TOOL_DIR.
+DEFAULT_SEARCH_PATH="$TOOL_DIR/lib/pkgconfig"
 if [ "$OS_NAME" = "Linux" ]; then
-    PKG_CONFIG_SEARCH_PATH="$PKG_CONFIG_SEARCH_PATH:$TOOL_DIR/lib64/pkgconfig"
+    # Some libs on Linux might end up in lib64, though we try to avoid it.
+    DEFAULT_SEARCH_PATH="$DEFAULT_SEARCH_PATH:$TOOL_DIR/lib64/pkgconfig"
 fi
 
-./configure --prefix="$TOOL_DIR" \
-            --with-pc-path="$PKG_CONFIG_SEARCH_PATH" \
-            --with-internal-glib \
-            "$CONFIGURE_CFLAGS" # Add CFLAGS here
-checkStatus $? "configuration of pkg-config failed"
+# Configure:
+# --with-internal-glib: Use bundled GLib (avoids circular dependency).
+# --disable-host-tool: Don't prefix the tool name.
+# --with-pc-path: Set the default search path.
+./configure \
+    --prefix="$TOOL_DIR" \
+    --with-internal-glib \
+    --disable-host-tool \
+    --disable-shared \
+    --with-pc-path="$DEFAULT_SEARCH_PATH" \
+    CFLAGS="$CFLAGS $EXTRA_CFLAGS"
 
-# build
-make
-checkStatus $? "build of pkg-config failed"
+checkStatus $? "Configuration failed"
 
-# install
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
 make install
-checkStatus $? "installation of pkg-config failed"
+checkStatus $? "Installation failed"
+
+echoSection "pkg-config Build Complete"

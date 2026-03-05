@@ -1,74 +1,89 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for zlib (Data Compression Library)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
-
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/zlib")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "zlib"
-checkStatus $? "create directory failed"
-cd "zlib/"
-checkStatus $? "change directory failed"
-
-# download source
-download https://www.zlib.net/fossils/zlib-$VERSION.tar.gz "zlib.tar.gz"
-checkStatus $? "download failed"
-
-# unpacking
-tar -zxf "zlib.tar.gz"
-checkStatus $? "unpacking failed"
-cd "zlib-$VERSION/"
-checkStatus $? "change directory failed"
-
-DETECTED_OS="$(uname -o 2> /dev/null)"
-echo "detected OS: $DETECTED_OS"
-if [ $DETECTED_OS = "Msys" ]; then
-	echo "run windows specific build"
-
-	# windows build
-	make -j $CPUS -f win32/Makefile.gcc
-	checkStatus $? "build failed"
-
-	# install
-	make -j $CPUS -f win32/Makefile.gcc install INCLUDE_PATH=$TOOL_DIR/include LIBRARY_PATH=$TOOL_DIR/lib BINARY_PATH=$TOO_DIR/bin
-	checkStatus $? "installation failed"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
 else
-	# prepare build
-	./configure --prefix="$TOOL_DIR" --static
-	checkStatus $? "configuration failed"
-
-	# build
-	make -j $CPUS
-	checkStatus $? "build failed"
-
-	# install
-	make install
-	checkStatus $? "installation failed"
+    echo "Error: functions.sh not found."
+    exit 1
 fi
+
+echoSection "Building zlib"
+
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/zlib"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
+
+echo "Target Version: $VERSION"
+
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/zlib"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
+
+# 3. Download Source
+# URL: https://zlib.net/zlib-1.3.tar.gz
+# Mirror: https://github.com/madler/zlib/releases/download/v1.3/zlib-1.3.tar.gz
+TARBALL="zlib-$VERSION.tar.gz"
+URL="https://zlib.net/zlib-$VERSION.tar.gz"
+MIRROR_URL="https://github.com/madler/zlib/releases/download/v$VERSION/zlib-$VERSION.tar.gz"
+
+echo "Downloading source..."
+if curl -L -f --retry 3 --connect-timeout 10 -o "$TARBALL" "$URL"; then
+    echo "Download successful from zlib.net."
+else
+    echo "Primary download failed. Trying GitHub mirror..."
+    download "$MIRROR_URL" "$TARBALL"
+fi
+
+# Unpack
+SRC_DIR_NAME="zlib-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring zlib..."
+
+# Flags:
+# --prefix: Install location.
+# --static: Build only static library (libz.a).
+./configure \
+    --prefix="$TOOL_DIR" \
+    --static
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
+make install
+checkStatus $? "Installation failed"
+
+echoSection "zlib Build Complete"

@@ -1,102 +1,132 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for Ninja (Small Build System with a focus on speed)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
-# Reconstruct LOG_DIR path
-LOG_DIR="$(pwd)/log"
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
-
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/ninja")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir -p "ninja" # Use -p
-cd "ninja/"
-checkStatus $? "change directory failed"
-
-# download source
-if [ -d "ninja" ]; then
-    # source code already exists
-    echo "skip download"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
 else
-    # download now
-    download https://github.com/ninja-build/ninja/archive/refs/tags/v$VERSION.tar.gz "ninja.tar.gz"
-    checkStatus $? "download failed"
-
-    # unpack
-    tar -zxf "ninja.tar.gz"
-    checkStatus $? "unpack failed"
-    # Assume tarball unpacks to 'ninja-1.11.1' or similar based on version
-    # Find the unpacked directory name (adjust pattern if needed)
-    UNPACKED_DIR=$(find . -maxdepth 1 -type d -name 'ninja-*' | head -n 1)
-    if [ -z "$UNPACKED_DIR" ]; then
-        echo "ERROR: Could not find unpacked ninja directory."
-        exit 1
-    fi
-    mv "$UNPACKED_DIR" ninja # Rename to predictable 'ninja'
-    checkStatus $? "rename failed"
+    echo "Error: functions.sh not found."
+    exit 1
 fi
-cd "ninja/"
-checkStatus $? "change directory failed"
 
-# prepare build
-mkdir -p ninja_build
-checkStatus $? "create directory failed"
-cd ninja_build/
-checkStatus $? "change directory failed"
+echoSection "Installing Ninja"
 
-# --- FIX: Force include cstdint for googletest compilation ---
-echo "Exporting CXXFLAGS to include cstdint for googletest..."
-# Preserve existing CXXFLAGS set by build.sh (which includes -fPIC)
-ORIGINAL_CXXFLAGS="${CXXFLAGS}"
-export CXXFLAGS="-include cstdint ${ORIGINAL_CXXFLAGS}"
-echo "DEBUG: CXXFLAGS for ninja build: ${CXXFLAGS}"
-# --- End FIX ---
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/ninja"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# Run CMake - it should pick up the CXXFLAGS
-cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" -DBUILD_TESTING=OFF ..
-checkStatus $? "configuration failed"
+echo "Target Version: $VERSION"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/ninja"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# install
-make install
-checkStatus $? "installation failed"
+# 3. Attempt Binary Download (Fast Path)
+# ------------------------------------------------------------------------------
+# Ninja releases usually contain static binaries. We try to use them first.
 
-# Restore CXXFLAGS? Not strictly needed as script likely runs in subshell env.
-# export CXXFLAGS="${ORIGINAL_CXXFLAGS}"
+OS_NAME=$(uname -s)
+ARCH_NAME=$(uname -m)
+BINARY_URL=""
+BINARY_ZIP=""
 
-# Go back to the directory build-ninja.sh was called from ($SOURCE_DIR/ninja)
-cd .. # Back to 'ninja' dir
-checkStatus $? "Failed cd back to ninja dir"
-cd .. # Back to 'ninja' parent dir ($SOURCE_DIR/ninja)
-checkStatus $? "Failed cd back to SOURCE_DIR/ninja"
+if [ "$OS_NAME" = "Darwin" ]; then
+    BINARY_ZIP="ninja-mac.zip"
+    BINARY_URL="https://github.com/ninja-build/ninja/releases/download/v${VERSION}/ninja-mac.zip"
+elif [ "$OS_NAME" = "Linux" ]; then
+    if [ "$ARCH_NAME" = "x86_64" ]; then
+        BINARY_ZIP="ninja-linux.zip"
+        BINARY_URL="https://github.com/ninja-build/ninja/releases/download/v${VERSION}/ninja-linux.zip"
+    elif [ "$ARCH_NAME" = "aarch64" ]; then
+        BINARY_ZIP="ninja-linux-aarch64.zip"
+        BINARY_URL="https://github.com/ninja-build/ninja/releases/download/v${VERSION}/ninja-linux-aarch64.zip"
+    fi
+fi
 
-# Note: Success marker logic was removed previously
-# If needed: touch "$LOG_DIR/build-ninja.success"
+# Try to download binary if URL is determined
+if [ -n "$BINARY_URL" ]; then
+    echo "Attempting to download binary from: $BINARY_URL"
+    if curl -L -f --retry 3 --connect-timeout 10 -o "$BINARY_ZIP" "$BINARY_URL"; then
+        echo "Binary download successful. Installing..."
+        
+        # Need unzip for ninja releases
+        if command -v unzip >/dev/null 2>&1; then
+            unzip -o "$BINARY_ZIP"
+            checkStatus $? "Unzip failed"
+            
+            # Install
+            mkdir -p "$TOOL_DIR/bin"
+            chmod +x ninja
+            cp ninja "$TOOL_DIR/bin/"
+            checkStatus $? "Copy binary failed"
+            
+            echo "Ninja binary installed successfully."
+            exit 0
+        else
+            echo "Warning: 'unzip' command not found. Falling back to source build."
+        fi
+    else
+        echo "Binary download failed or not found. Falling back to source build."
+    fi
+fi
+
+# 4. Source Build (Fallback)
+# ------------------------------------------------------------------------------
+echoSection "Building Ninja from Source"
+
+TARBALL="ninja-$VERSION.tar.gz"
+SOURCE_URL="https://github.com/ninja-build/ninja/archive/refs/tags/v$VERSION.tar.gz"
+
+download "$SOURCE_URL" "$TARBALL"
+
+# Unpack
+SRC_DIR_NAME="ninja-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring Ninja..."
+
+# Flags:
+# -DBUILD_TESTING=OFF: Disable tests (removes GoogleTest dependency and cstdint issues).
+# -DCMAKE_CXX_FLAGS="-include cstdint": Explicitly fix GCC 13+ issue if tests are enabled or if source code needs it.
+cmake -S . -B build \
+    -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
+    -DBUILD_TESTING=OFF \
+    -DCMAKE_CXX_FLAGS="-include cstdint"
+
+checkStatus $? "Configuration failed"
+
+# Build
+echo "Compiling..."
+cmake --build build -j "$CPUS"
+checkStatus $? "Build failed"
+
+# Install
+echo "Installing..."
+cmake --install build
+checkStatus $? "Installation failed"
+
+echoSection "Ninja Build Complete"

@@ -1,104 +1,132 @@
 #!/bin/bash
 
-# Copyright 2023 Martin Riedl
-# Merged for Linux & macOS compatibility
+# ==============================================================================
+# Build Script for zimg (Scaling, Colorspace Conversion, Dithering Library)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
-
-# load functions (including run_sed)
-# shellcheck source=/dev/null
-. "$SCRIPT_DIR/functions.sh"
-
-# --- OS Detection ---
-OS_NAME=$(uname)
-
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/zimg")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir -p "zimg" # Use -p
-cd "zimg/"
-checkStatus $? "change directory failed"
-
-# download source
-ZIMG_TARBALL="zimg-$VERSION.tar.gz" # Consistent name
-ZIMG_UNPACK_DIR="zimg-release-$VERSION" # Match unpack dir name
-download https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz "$ZIMG_TARBALL"
-checkStatus $? "download failed"
-
-# unpack
-tar -zxf "$ZIMG_TARBALL"
-checkStatus $? "unpack failed"
-rm "$ZIMG_TARBALL" # Clean up
-cd "$ZIMG_UNPACK_DIR/"
-checkStatus $? "change directory failed"
-
-# prepare build
-./autogen.sh
-checkStatus $? "autogen failed"
-./configure --prefix="$TOOL_DIR" --enable-shared=no
-checkStatus $? "configuration failed"
-
-# build
-make -j $CPUS
-checkStatus $? "build failed"
-
-# install
-make install
-checkStatus $? "installation failed"
-
-# --- Post-installation pkg-config fix ---
-# build fails on some OS, because of missing linking to libm
-echo "Applying post-installation fix to zimg.pc..."
-# Determine where the .pc file was installed
-PKGCONFIG_PATH_LIB="$TOOL_DIR/lib/pkgconfig/zimg.pc"
-PKGCONFIG_PATH_LIB64="$TOOL_DIR/lib64/pkgconfig/zimg.pc"
-ACTUAL_PC_FILE=""
-
-if [ -f "$PKGCONFIG_PATH_LIB" ]; then
-    ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB"
-elif [ "$OS_NAME" = "Linux" ] && [ -f "$PKGCONFIG_PATH_LIB64" ]; then
-    ACTUAL_PC_FILE="$PKGCONFIG_PATH_LIB64"
-fi
-
-if [ -z "$ACTUAL_PC_FILE" ]; then
-    echo "Warning: zimg.pc not found in expected pkgconfig directories after install!"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
 else
-     echo "Found pkgconfig file at: $ACTUAL_PC_FILE"
-     # Add -lm if missing
-     if ! grep -q -- "-lm" "$ACTUAL_PC_FILE"; then
-         echo "Adding -lm to $ACTUAL_PC_FILE"
-         # Append to Libs.private if it exists, otherwise append to Libs
-         if grep -q "^Libs.private:" "$ACTUAL_PC_FILE"; then
-             run_sed "s|^Libs.private:.*|& -lm|" "$ACTUAL_PC_FILE"
-         else
-             run_sed "s|^Libs:.*|& -lm|" "$ACTUAL_PC_FILE"
-         fi
-          checkStatus $? "modify pkgconfig file failed"
-     else
-          echo "-lm already seems present in $ACTUAL_PC_FILE."
-     fi
+    echo "Error: functions.sh not found."
+    exit 1
 fi
 
-cd .. # Back to SOURCE_DIR/zimg
+echoSection "Building zimg"
+
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/zimg"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
+
+OS_NAME=$(uname -s)
+echo "Target Version: $VERSION"
+
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/zimg"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
+
+# 3. Download Source
+# URL: https://github.com/sekrit-twc/zimg/archive/refs/tags/release-3.0.5.tar.gz
+TARBALL="zimg-$VERSION.tar.gz"
+URL="https://github.com/sekrit-twc/zimg/archive/refs/tags/release-$VERSION.tar.gz"
+
+download "$URL" "$TARBALL"
+
+# Unpack
+SRC_DIR_NAME="zimg-src"
+mkdir -p "$SRC_DIR_NAME"
+# Use strip-components to ignore the "zimg-release-X.X.X" directory name
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Generating build system..."
+./autogen.sh
+checkStatus $? "Autogen failed"
+
+echo "Configuring zimg..."
+
+# Flags:
+# --enable-static / --disable-shared: Static linking requirement.
+# --libdir: Force install to 'lib' to avoid 'lib64' confusion on some distros.
+./configure \
+    --prefix="$TOOL_DIR" \
+    --libdir="$TOOL_DIR/lib" \
+    --enable-static \
+    --disable-shared
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
+make install
+checkStatus $? "Installation failed"
+
+# 7. Post-Install Fix for Static Linking
+# ------------------------------------------------------------------------------
+# zimg is C++, but exposes C API.
+# 1. It often needs explicit linking to libm (-lm).
+# 2. Static linking often fails because the .pc file misses -lstdc++ (or -lc++).
+
+echoSection "Patching zimg.pc"
+PC_FILE="$TOOL_DIR/lib/pkgconfig/zimg.pc"
+
+if [ -f "$PC_FILE" ]; then
+    echo "Found pkg-config file: $PC_FILE"
+    
+    # --- Fix 1: Add -lm (Math Library) ---
+    if ! grep -q -- "-lm" "$PC_FILE"; then
+        echo "Injecting -lm..."
+        # Try appending to Libs.private first, then Libs
+        if grep -q "Libs.private:" "$PC_FILE"; then
+            run_sed 's/Libs.private:/Libs.private: -lm/g' "$PC_FILE"
+        else
+            run_sed 's/Libs:/Libs: -lm/g' "$PC_FILE"
+        fi
+    fi
+
+    # --- Fix 2: Add C++ Standard Library ---
+    CPP_LIB="-lstdc++"
+    if [ "$OS_NAME" = "Darwin" ]; then
+        CPP_LIB="-lc++"
+    fi
+
+    if ! grep -q -- "$CPP_LIB" "$PC_FILE"; then
+        echo "Injecting $CPP_LIB..."
+        if grep -q "Libs.private:" "$PC_FILE"; then
+            run_sed "s/Libs.private:/Libs.private: $CPP_LIB/g" "$PC_FILE"
+        else
+            run_sed "s/Libs:/Libs: $CPP_LIB/g" "$PC_FILE"
+        fi
+    fi
+    
+    checkStatus $? "Patching zimg.pc failed"
+else
+    echo "Warning: zimg.pc not found. Static linking might fail."
+fi
+
+echoSection "zimg Build Complete"

@@ -1,82 +1,107 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-# Merged for Linux & macOS compatibility
+# ==============================================================================
+# Build Script for NASM (Netwide Assembler)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
-
-# load functions
-# shellcheck source=/dev/null
-. "$SCRIPT_DIR/functions.sh"
-
-# --- OS Detection ---
-OS_NAME=$(uname)
-
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/nasm")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir -p "nasm" # Use -p
-cd "nasm/"
-checkStatus $? "change directory failed"
-
-# download source
-NASM_SUBDIR="nasm-src" # Use a subdirectory
-mkdir -p "$NASM_SUBDIR"
-checkStatus $? "create directory failed"
-download http://www.nasm.us/pub/nasm/releasebuilds/$VERSION/nasm-$VERSION.tar.gz nasm.tar.gz
-if [ $? -ne 0 ]; then
-    echo "download failed; start download from github server"
-    download https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-$VERSION.tar.gz nasm.tar.gz
-    checkStatus $? "download failed"
-fi
-
-# unpack
-tar -zxf "nasm.tar.gz" -C "$NASM_SUBDIR" --strip-components=1
-checkStatus $? "unpack failed"
-rm nasm.tar.gz # Clean up tarball
-cd "$NASM_SUBDIR/"
-checkStatus $? "change directory failed"
-
-# prepare build
-if [ -f "configure" ]; then
-    echo "configure file found; continue"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
 else
-    echo "run autogen first"
-    ./autogen.sh
-    checkStatus $? "autogen failed" # Check status
+    echo "Error: functions.sh not found."
+    exit 1
 fi
-./configure --prefix="$TOOL_DIR"
-checkStatus $? "configuration failed"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+echoSection "Building NASM"
 
-touch ./nasm.1
-touch ./ndisasm.1
+# 2. Architecture Check
+# NASM is x86 assembly. It is useless on ARM (Apple Silicon, etc.)
+ARCH=$(uname -m)
+if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
+    echo "Architecture is $ARCH. NASM is not required. Skipping."
+    exit 0
+fi
 
-# install
+# 3. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/nasm"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
+
+echo "Target Version: $VERSION"
+
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/nasm"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
+
+# 4. Download Source
+# Try official site first, fallback to GitHub
+TARBALL="nasm-${VERSION}.tar.gz"
+PRIMARY_URL="https://www.nasm.us/pub/nasm/releasebuilds/${VERSION}/nasm-${VERSION}.tar.gz"
+# Note: GitHub release tags often format as 'nasm-X.XX.XX'
+GITHUB_URL="https://github.com/netwide-assembler/nasm/archive/refs/tags/nasm-${VERSION}.tar.gz"
+
+echo "Downloading source..."
+if curl -L -f --retry 3 --connect-timeout 10 -o "$TARBALL" "$PRIMARY_URL"; then
+    echo "Download successful from nasm.us."
+else
+    echo "Primary download failed. Trying backup mirror (GitHub)..."
+    download "$GITHUB_URL" "$TARBALL"
+fi
+
+# Unpack
+SRC_DIR_NAME="nasm-src"
+mkdir -p "$SRC_DIR_NAME"
+# Use strip-components to handle arbitrary internal folder names
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 5. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring NASM..."
+
+# If downloading from GitHub, 'configure' might be missing
+if [ ! -f "configure" ]; then
+    echo "configure script not found. Running autogen.sh..."
+    ./autogen.sh
+    checkStatus $? "Autogen failed"
+fi
+
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-sections
+
+checkStatus $? "Configuration failed"
+
+# 6. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 7. Install
+echo "Installing..."
+
+# Trick: Create dummy man pages to prevent make install from failing
+# if asciidoc/xmlto are missing.
+touch nasm.1 ndisasm.1
+
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "NASM Build Complete"

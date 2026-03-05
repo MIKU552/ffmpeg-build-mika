@@ -1,62 +1,88 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for libbluray (Blu-ray Disc Playback Library)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libbluray")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+echoSection "Building libbluray"
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "libbluray"
-checkStatus $? "create directory failed"
-cd "libbluray/"
-checkStatus $? "change directory failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/libbluray"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# download source
-download https://download.videolan.org/pub/videolan/libbluray/$VERSION/libbluray-$VERSION.tar.bz2 "libbluray.tar.bz2"
-checkStatus $? "download failed"
+echo "Target Version: $VERSION"
 
-# unpack
-bunzip2 "libbluray.tar.bz2"
-checkStatus $? "unpack failed (bunzip2)"
-tar -xf "libbluray.tar"
-checkStatus $? "unpack failed (tar)"
-cd "libbluray-$VERSION/"
-checkStatus $? "change directory failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/libbluray"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# prepare build
-./configure --prefix="$TOOL_DIR" --enable-shared=no --disable-bdjava-jar
-checkStatus $? "configuration failed"
+# 3. Download Source
+# URL: https://download.videolan.org/pub/videolan/libbluray/1.3.4/libbluray-1.3.4.tar.bz2
+TARBALL="libbluray-$VERSION.tar.bz2"
+URL="https://download.videolan.org/pub/videolan/libbluray/$VERSION/libbluray-$VERSION.tar.bz2"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+download "$URL" "$TARBALL"
 
-# install
+# Unpack
+SRC_DIR_NAME="libbluray-src"
+mkdir -p "$SRC_DIR_NAME"
+# Use -xjf to handle .tar.bz2 directly
+tar -xjf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring libbluray..."
+
+# Flags:
+# --disable-bdjava-jar: Disable BD-J (Java) support to avoid JDK dependency.
+# --disable-examples: Skip building example binaries.
+# --disable-doxygen-doc: Skip documentation generation.
+# --enable-static / --disable-shared: Static linking requirement.
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-static \
+    --disable-shared \
+    --disable-bdjava-jar \
+    --disable-examples \
+    --disable-doxygen-doc
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "libbluray Build Complete"

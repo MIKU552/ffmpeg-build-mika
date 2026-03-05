@@ -1,71 +1,103 @@
 #!/bin/bash
 
-# Copyright 2022 Martin Riedl
-# Merged for Linux & macOS compatibility
+# ==============================================================================
+# Build Script for libvorbis (Vorbis Audio Codec)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
-
-# load functions (including run_sed)
-# shellcheck source=/dev/null
-. "$SCRIPT_DIR/functions.sh"
-
-# --- OS Detection ---
-OS_NAME=$(uname)
-
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/libvorbis")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir -p "libvorbis" # Use -p
-cd "libvorbis/"
-checkStatus $? "change directory failed"
-
-# download source
-download https://ftp.osuosl.org/pub/xiph/releases/vorbis/libvorbis-$VERSION.tar.gz "libvorbis.tar.gz"
-checkStatus $? "download failed"
-
-# unpack
-tar -zxf "libvorbis.tar.gz"
-checkStatus $? "unpack failed"
-cd "libvorbis-$VERSION/"
-checkStatus $? "change directory failed"
-
-# prepare build
-# Apply macOS specific sed changes only on Darwin
-if [ "$OS_NAME" = "Darwin" ]; then
-    echo "Applying macOS specific configure patches..."
-    run_sed '205,207s/-force_cpusubtype_ALL //g' configure.ac
-    run_sed '12843,12845s/-force_cpusubtype_ALL //g' configure
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
 fi
 
-./configure --prefix="$TOOL_DIR" --enable-shared=no --disable-examples --disable-docs
-checkStatus $? "configuration failed"
+echoSection "Building libvorbis"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/libvorbis"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# install
+echo "Target Version: $VERSION"
+
+OS_NAME=$(uname -s)
+
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/libvorbis"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
+
+# 3. Download Source
+# URL: https://ftp.osuosl.org/pub/xiph/releases/vorbis/libvorbis-1.3.7.tar.gz
+TARBALL="libvorbis-$VERSION.tar.gz"
+URL="https://ftp.osuosl.org/pub/xiph/releases/vorbis/libvorbis-$VERSION.tar.gz"
+
+download "$URL" "$TARBALL"
+
+# Unpack
+SRC_DIR_NAME="libvorbis-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Patching (macOS Specific)
+cd "$SRC_DIR_NAME" || exit 1
+
+if [ "$OS_NAME" = "Darwin" ]; then
+    echo "Applying macOS specific configuration patches..."
+    # The flag '-force_cpusubtype_ALL' is deprecated/removed in modern clang/Xcode
+    # and causes build failures. We remove it safely using regex (not line numbers).
+    
+    if [ -f "configure" ]; then
+        run_sed 's/-force_cpusubtype_ALL//g' configure
+    fi
+    
+    if [ -f "configure.ac" ]; then
+        run_sed 's/-force_cpusubtype_ALL//g' configure.ac
+    fi
+fi
+
+# 5. Configure
+echo "Configuring libvorbis..."
+
+# Flags:
+# --enable-static / --disable-shared: Static linking requirement.
+# --disable-docs / --disable-examples: Simplify build.
+# Note: libvorbis relies on pkg-config to find libogg. 
+#       Ensure PKG_CONFIG_PATH includes $TOOL_DIR/lib/pkgconfig (set in build_fix.sh).
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-static \
+    --disable-shared \
+    --disable-docs \
+    --disable-examples
+
+checkStatus $? "Configuration failed"
+
+# 6. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 7. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "libvorbis Build Complete"

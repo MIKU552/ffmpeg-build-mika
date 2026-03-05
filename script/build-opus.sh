@@ -1,72 +1,107 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for Opus (High-Quality Audio Codec)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
-
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/opus")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
-
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "opus"
-checkStatus $? "create directory failed"
-cd "opus/"
-checkStatus $? "change directory failed"
-
-# download source
-download https://downloads.xiph.org/releases/opus/opus-$VERSION.tar.gz "opus.tar.gz"
-if [ $? -ne 0 ]; then
-    echo "download failed; start download from gitlab server"
-    download https://gitlab.xiph.org/xiph/opus/-/archive/v$VERSION/opus-v$VERSION.tar.gz "opus.tar.gz"
-    checkStatus $? "download failed"
-fi
-
-# unpack
-tar -zxf "opus.tar.gz"
-checkStatus $? "unpack failed"
-cd opus*$VERSION/
-checkStatus $? "change directory failed"
-
-# check for pre-generated configure file
-if [ -f "configure" ]; then
-    echo "use existing configure file"
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
 else
-    ./autogen.sh
-    checkStatus $? "autogen failed"
+    echo "Error: functions.sh not found."
+    exit 1
 fi
 
-# prepare build
-./configure --prefix="$TOOL_DIR" --enable-shared=no
-checkStatus $? "configuration failed"
+echoSection "Building Opus"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/opus"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# install
+echo "Target Version: $VERSION"
+
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/opus"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
+
+# 3. Download Source
+# Primary: Official Release (Has configure script)
+# Fallback: GitLab Tag (Needs autogen.sh)
+TARBALL="opus.tar.gz"
+PRIMARY_URL="https://downloads.xiph.org/releases/opus/opus-$VERSION.tar.gz"
+BACKUP_URL="https://gitlab.xiph.org/xiph/opus/-/archive/v$VERSION/opus-v$VERSION.tar.gz"
+
+echo "Downloading source..."
+if curl -L -f --retry 3 --connect-timeout 10 -o "$TARBALL" "$PRIMARY_URL"; then
+    echo "Download successful from xiph.org."
+else
+    echo "Primary download failed. Trying backup mirror (GitLab)..."
+    download "$BACKUP_URL" "$TARBALL"
+fi
+
+# Unpack
+SRC_DIR_NAME="opus-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring Opus..."
+
+# Check if we need to generate the build system
+if [ ! -f "configure" ]; then
+    echo "configure script not found. Running autogen.sh..."
+    if [ -f "autogen.sh" ]; then
+        ./autogen.sh
+        checkStatus $? "Autogen failed"
+    else
+        echo "Error: Neither configure nor autogen.sh found."
+        exit 1
+    fi
+fi
+
+# Flags:
+# --enable-static / --disable-shared: Static build.
+# --with-pic: Position Independent Code (recommended for static libs).
+# --disable-extra-programs: Don't build demos/tests.
+# --disable-doc: Skip documentation.
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-static \
+    --disable-shared \
+    --with-pic \
+    --disable-extra-programs \
+    --disable-doc
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "Opus Build Complete"

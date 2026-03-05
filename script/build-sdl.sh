@@ -1,60 +1,86 @@
 #!/bin/bash
 
-# Copyright 2021 Martin Riedl
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ==============================================================================
+# Build Script for SDL2 (Simple DirectMedia Layer)
+# ==============================================================================
+# Part of FFmpeg Build Script
+# Licensed under Apache License, Version 2.0
+# ==============================================================================
 
-# handle arguments
-echo "arguments: $@"
-SCRIPT_DIR=$1
-SOURCE_DIR=$2
-TOOL_DIR=$3
-CPUS=$4
+# 1. Argument Processing
+echo "Arguments: $@"
+SCRIPT_DIR="$1"
+SOURCE_DIR="$2"
+TOOL_DIR="$3"
+CPUS="$4"
 
-# load functions
-. $SCRIPT_DIR/functions.sh
+# Load Helper Functions
+if [ -f "$SCRIPT_DIR/functions.sh" ]; then
+    . "$SCRIPT_DIR/functions.sh"
+else
+    echo "Error: functions.sh not found."
+    exit 1
+fi
 
-# load version
-VERSION=$(cat "$SCRIPT_DIR/../version/sdl")
-checkStatus $? "load version failed"
-echo "version: $VERSION"
+echoSection "Building SDL2"
 
-# start in working directory
-cd "$SOURCE_DIR"
-checkStatus $? "change directory failed"
-mkdir "sdl"
-checkStatus $? "create directory failed"
-cd "sdl/"
-checkStatus $? "change directory failed"
+# 2. Version & Directory Setup
+VERSION_FILE="$SCRIPT_DIR/../version/sdl"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(cat "$VERSION_FILE")
+else
+    echo "Error: Version file not found."
+    exit 1
+fi
 
-# download source
-download https://www.libsdl.org/release/SDL2-$VERSION.tar.gz "SDL2.tar.gz"
-checkStatus $? "download failed"
+echo "Target Version: $VERSION"
 
-# unpack
-tar -zxf "SDL2.tar.gz"
-checkStatus $? "unpack failed"
-cd "SDL2-$VERSION/"
-checkStatus $? "change directory failed"
+# Prepare Source Directory
+TARGET_SRC_DIR="$SOURCE_DIR/sdl"
+mkdir -p "$TARGET_SRC_DIR"
+cd "$TARGET_SRC_DIR" || exit 1
 
-# prepare build
-./configure --prefix="$TOOL_DIR" --enable-shared=no --enable-system-iconv=no
-checkStatus $? "configuration failed"
+# 3. Download Source
+# URL: https://github.com/libsdl-org/SDL/releases/download/release-2.28.5/SDL2-2.28.5.tar.gz
+# Fallback: https://www.libsdl.org/release/SDL2-$VERSION.tar.gz
+TARBALL="SDL2-$VERSION.tar.gz"
+URL="https://github.com/libsdl-org/SDL/releases/download/release-$VERSION/SDL2-$VERSION.tar.gz"
 
-# build
-make -j $CPUS
-checkStatus $? "build failed"
+download "$URL" "$TARBALL"
 
-# install
+# Unpack
+SRC_DIR_NAME="sdl-src"
+mkdir -p "$SRC_DIR_NAME"
+tar -zxf "$TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
+checkStatus $? "Unpack failed"
+rm "$TARBALL"
+
+# 4. Configure
+cd "$SRC_DIR_NAME" || exit 1
+
+echo "Configuring SDL2..."
+
+# Flags:
+# --enable-static / --disable-shared: Static linking requirement.
+# --enable-system-iconv=no: Use SDL's internal iconv implementation (safer for static builds).
+# --disable-rpath: Don't hardcode runtime library search paths.
+./configure \
+    --prefix="$TOOL_DIR" \
+    --enable-static \
+    --disable-shared \
+    --enable-system-iconv=no \
+    --disable-rpath
+
+checkStatus $? "Configuration failed"
+
+# 5. Build
+echo "Compiling..."
+make -j "$CPUS"
+checkStatus $? "Build failed"
+
+# 6. Install
+echo "Installing..."
 make install
-checkStatus $? "installation failed"
+checkStatus $? "Installation failed"
+
+echoSection "SDL2 Build Complete"
