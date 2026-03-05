@@ -181,7 +181,7 @@ cd build
 * `include/` : C/C++ 头文件。
 * `ffmpeg-build-*.tar.gz` (Linux) 或 `*.zip` (macOS) 便携压缩包。
 
-> **macOS 注意事项**: 脚本在打包前会自动处理动态库的路径重定位 (`@executable_path`)。生成的 zip 文件是完全便携（Portable）的，解压后可以在任何目录下直接运行，无需设置任何环境变量。
+> **关于便携性 (Portability) 的说明**: **macOS** 和 **Linux** 的构建产物均是完全便携的“绿色版”。脚本在底层自动处理了动态库的相对路径重定位（macOS 使用 `@executable_path`，Linux 使用基于 `$ORIGIN` 的 RPATH 注入）。生成的压缩包（`.zip` 或 `.tar.gz`）解压后，即可在系统的任何目录下直接运行，彻底告别繁琐的 `LD_LIBRARY_PATH` 环境变量配置！
 
 ## 📜 鸣谢
 

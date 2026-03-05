@@ -181,7 +181,7 @@ After a successful build, the `out` directory (inside your `build` folder) will 
 * `include/` : Headers.
 * `ffmpeg-build-*.tar.gz` (Linux) or `*.zip` (macOS).
 
-> **Note for macOS**: The script automatically handles dylib relocation (`@executable_path`). The generated zip file is fully portable and can be run from any directory after extraction.
+> **Note on Portability**: Both **macOS** and **Linux** builds are fully portable out-of-the-box. The script automatically handles dynamic library relocation (using `@executable_path` via `install_name_tool` on macOS, and `$ORIGIN` RPATH injection on Linux). The generated archives (`.zip` or `.tar.gz`) can be extracted and run from any directory without configuring complex environment variables like `LD_LIBRARY_PATH`.
 
 ## 📜 Credits
 
