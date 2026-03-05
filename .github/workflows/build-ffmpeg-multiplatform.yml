@@ -156,7 +156,7 @@ jobs:
               
               if [ "$SKIP_STATUS" = "NO" ]; then
                  # The component was compiled and included
-                 local ver=$(cat "$f" 2>/dev/null || echo "git-latest")
+                 ver=$(cat "$f" 2>/dev/null || echo "git-latest")
                  
                  # Handle git hashes (truncate to 7 chars if it looks like a hash)
                  if [[ "$ver" =~ ^[0-9a-f]{7,40}$ ]]; then
