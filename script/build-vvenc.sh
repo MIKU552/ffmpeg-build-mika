@@ -134,7 +134,7 @@ if [ "$ENABLE_PGO" = "YES" ]; then
         # 1. Removed `-c WaveFrontSynchro=1` as it causes a parsing error in the latest vvencapp.
         
         xz -dc "$SAMPLE_DIR/$sample" | \
-        $APP -i - --y4m --preset 3 -q 26 --threads "$CPUS" --frames 10 -o /dev/null
+        $APP -i - --y4m --preset 3 -q 26 --threads "$CPUS" --frames 30 -o /dev/null
         
         # Fail loudly if it crashes
         if [ ${PIPESTATUS[1]} -ne 0 ]; then
