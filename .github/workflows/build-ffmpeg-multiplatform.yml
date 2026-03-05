@@ -197,8 +197,8 @@ jobs:
             build/components.md
           if-no-files-found: error
 
-      - name: Upload Logs (On Failure)
-        if: failure()
+      - name: Upload Logs (Always)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-build-logs-linux
@@ -321,8 +321,8 @@ jobs:
           path: build/ffmpeg-*.zip
           if-no-files-found: error
 
-      - name: Upload Logs (On Failure)
-        if: failure()
+      - name: Upload Logs (Always)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-build-logs-macos
