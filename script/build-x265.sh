@@ -191,7 +191,6 @@ train_generator() {
                 --y4m \
                 --input - \
                 --output /dev/null \
-                --frames 30 \
                 --preset veryslow \
                 --crf 28 \
                 --no-info \
