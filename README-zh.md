@@ -192,4 +192,4 @@ cd build
 ## ⚖️ 许可证
 
 基于 **Apache License, Version 2.0** 许可。
-详情请参阅 [LICENSE](https://www.google.com/search?q=LICENSE) 文件。
+详情请参阅 [LICENSE](LICENSE) 文件。

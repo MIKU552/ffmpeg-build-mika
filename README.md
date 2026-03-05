@@ -192,4 +192,4 @@ After a successful build, the `out` directory (inside your `build` folder) will 
 ## ⚖️ License
 
 Licensed under the **Apache License, Version 2.0**.
-See the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.
+See the [LICENSE](LICENSE) file for details.
