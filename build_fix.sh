@@ -456,7 +456,14 @@ run_build "cmake"      "build-cmake"      "cmake"      "cmake"      "" "NO" "NO"
 run_build "ninja"      "build-ninja"      "ninja"      "ninja"      "" "NO" "NO"
 
 # --- Group 2: Core Libraries ---
-run_build "libiconv"   "build-libiconv"   "libiconv.a" "libiconv"   "--enable-iconv" "NO" "NO"
+if [ "$OS_NAME" = "Darwin" ]; then
+    # macOS natively has a perfect iconv, skip building our own to avoid symbol clashing
+    echoSection "Skip libiconv (Using macOS Native)"
+    FFMPEG_LIB_FLAGS="$FFMPEG_LIB_FLAGS --enable-iconv"
+else
+    # Linux needs static GNU libiconv for max portability and extra encodings
+    run_build "libiconv"   "build-libiconv"   "libiconv.a" "libiconv"   "--enable-iconv" "NO" "NO"
+fi
 run_build "zlib"       "build-zlib"       "libz.a"     "zlib"       "--enable-zlib" "NO" "NO"
 run_build "openssl"    "build-openssl"    "libssl.a"   "openssl"    "--enable-openssl" "NO" "NO"
 run_build "libxml2"    "build-libxml2"    "libxml2.a"  "libxml2"    "--enable-libxml2" "NO" "NO"
