@@ -192,7 +192,6 @@ train_generator() {
                 --frames 50 \
                 --preset veryslow \
                 --crf 28 \
-                --pmode \
                 --no-info \
                 --rc-lookahead 250 \
                 --open-gop
