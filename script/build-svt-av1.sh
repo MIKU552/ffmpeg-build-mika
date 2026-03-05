@@ -95,8 +95,8 @@ if [ -f "$PGO_CMAKE_FILE" ]; then
     # We forcefully overwrite the default encoding command in the CMake script.
     # We strip out whatever defaults the SVT-AV1 team put in and inject our 
     # exact production workload: --preset 2 --lookahead 120 --tune 0
-    # Regex explanation: Matches ${SvtAv1EncApp} up to the closing parenthesis ')'
-    run_sed 's/--film-grain 8/--preset 2 --lookahead 120 --tune 0/g' "$PGO_CMAKE_FILE"
+    # Regex explanation: Matches --preset up to the closing parenthesis ')'
+    run_sed 's/--preset[^)]*/--preset 2 --lookahead 120 --tune 0/g' "$PGO_CMAKE_FILE"
 fi
 
 # macOS Specific Configurations
