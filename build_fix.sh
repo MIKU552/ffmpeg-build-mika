@@ -47,6 +47,7 @@ SKIP_NINJA="NO"
 SKIP_SDL="NO"               # Required for ffplay
 
 # --- Text, Subtitles & Filters ---
+SKIP_LIBICONV="NO"          # Character encoding conversion
 SKIP_FRIBIDI="NO"
 SKIP_FREETYPE="NO"
 SKIP_FONTCONFIG="NO"
@@ -113,6 +114,7 @@ for arg in "$@"; do
         -SKIP_ZLIB)         SKIP_ZLIB=$VALUE ;;
         -SKIP_OPENSSL)      SKIP_OPENSSL=$VALUE ;;
         -SKIP_SDL)          SKIP_SDL=$VALUE ;;
+        -SKIP_LIBICONV)     SKIP_LIBICONV=$VALUE ;;
         
         # Video
         -SKIP_X264)         SKIP_X264=$VALUE ;;
@@ -260,14 +262,14 @@ REQUIRES_NON_FREE="NO"
 # Compiles a dependency if it doesn't already exist in the tool directory.
 #
 # Arguments:
-#   $1 - libname:             Unique identifier for the library (e.g., "x264").
-#   $2 - script_name:         The shell script file name in /script/ (e.g., "build-x264").
-#   $3 - check_filename:      The artifact to check for existence (e.g., "libx264.a" or "bin/nasm").
-#   $4 - source_subdir:       Subdirectory name in /source/ to unpack code into.
-#   $5 - ffmpeg_flag:         Flag to append to FFmpeg config (e.g., "--enable-libx264").
-#   $6 - is_gpl:              "YES" if this lib triggers GPL requirement.
-#   $7 - is_nonfree:          "YES" if this lib triggers Non-Free requirement.
-#   $@ - extra_args:          Additional arguments passed to the build script.
+#   $1 - libname:            Unique identifier for the library (e.g., "x264").
+#   $2 - script_name:        The shell script file name in /script/ (e.g., "build-x264").
+#   $3 - check_filename:     The artifact to check for existence (e.g., "libx264.a" or "bin/nasm").
+#   $4 - source_subdir:      Subdirectory name in /source/ to unpack code into.
+#   $5 - ffmpeg_flag:        Flag to append to FFmpeg config (e.g., "--enable-libx264").
+#   $6 - is_gpl:             "YES" if this lib triggers GPL requirement.
+#   $7 - is_nonfree:         "YES" if this lib triggers Non-Free requirement.
+#   $@ - extra_args:         Additional arguments passed to the build script.
 run_build() {
     local libname=$1
     local script_name=$2
@@ -454,6 +456,7 @@ run_build "cmake"      "build-cmake"      "cmake"      "cmake"      "" "NO" "NO"
 run_build "ninja"      "build-ninja"      "ninja"      "ninja"      "" "NO" "NO"
 
 # --- Group 2: Core Libraries ---
+run_build "libiconv"   "build-libiconv"   "libiconv.a" "libiconv"   "--enable-iconv" "NO" "NO"
 run_build "zlib"       "build-zlib"       "libz.a"     "zlib"       "--enable-zlib" "NO" "NO"
 run_build "openssl"    "build-openssl"    "libssl.a"   "openssl"    "--enable-openssl" "NO" "NO"
 run_build "libxml2"    "build-libxml2"    "libxml2.a"  "libxml2"    "--enable-libxml2" "NO" "NO"
