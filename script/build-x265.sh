@@ -118,10 +118,12 @@ if [ "$OS_NAME" = "Darwin" ]; then
         fi
     fi
 else
-    PGO_GEN_CFLAGS="-fprofile-generate"
-    PGO_GEN_CXXFLAGS="-fprofile-generate"
-    # Added -Wno-coverage-mismatch to ignore branching changes caused by LINKED_10BIT macros
-    # Added -Wno-alloc-size-larger-than to suppress GCC 13+ false positives during PGO inlining
+    # Linux (GCC)
+    # ADDED -fprofile-update=atomic to prevent data races and corrupted negative
+    # counters when x265 trains using multiple threads.
+    PGO_GEN_CFLAGS="-fprofile-generate -fprofile-update=atomic"
+    PGO_GEN_CXXFLAGS="-fprofile-generate -fprofile-update=atomic"
+    
     PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
     PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
     NASM_FLAGS="-DENABLE_CET=0"
