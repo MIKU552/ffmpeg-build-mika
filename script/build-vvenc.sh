@@ -129,12 +129,10 @@ if [ "$ENABLE_PGO" = "YES" ]; then
         echo "Training on $sample..."
         
         # NOTE: 
-        # 1. vvencapp strictly requires the output file to end with .266, .vvc, or .bin
-        #    so we use /dev/null.266 (which Linux/macOS will still happily discard into the void).
-        # 2. Removed `-c WaveFrontSynchro=1` as it causes a parsing error in the latest vvencapp.
+        # 1. Removed `-c WaveFrontSynchro=1` as it causes a parsing error in the latest vvencapp.
         
         xz -dc "$SAMPLE_DIR/$sample" | \
-        $APP -i - --y4m --preset 3 -q 26 --threads "$CPUS" --frames 30 -o /dev/null.266
+        $APP -i - --y4m --preset 3 -q 26 --threads "$CPUS" --frames 30 -o /dev/null
         
         # Fail loudly if it crashes
         if [ ${PIPESTATUS[1]} -ne 0 ]; then
