@@ -96,7 +96,7 @@ if [ -f "$PGO_CMAKE_FILE" ]; then
     # We strip out whatever defaults the SVT-AV1 team put in and inject our 
     # exact production workload: --preset 2 --lookahead 120 --tune 0
     # Regex explanation: Matches --preset up to the closing parenthesis ')'
-    run_sed 's/--preset[^)]*/--preset 2 --lookahead 120 --tune 0/g' "$PGO_CMAKE_FILE"
+    run_sed 's/--preset[^)]*/--preset 2 --lookahead 120 -n 10 --tune 0/g' "$PGO_CMAKE_FILE"
 fi
 
 # macOS Specific Configurations
