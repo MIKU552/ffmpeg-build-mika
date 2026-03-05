@@ -8,7 +8,7 @@
 #
 # Features:
 #   - Multi-bit depth support (8bit + 10bit + 12bit)
-#   - Profile-Guided Optimization (PGO)
+#   - Profile-Guided Optimization (PGO) tailored to custom encoding parameters
 #   - Cross-platform Static Linking (ar script for Linux, libtool for macOS)
 # ==============================================================================
 
@@ -49,35 +49,28 @@ cd "$TARGET_SRC_DIR" || exit 1
 
 # 3. Download & Unpack
 X265_TARBALL="x265-$VERSION.tar.gz"
-# Use specific git tag/archive from Bitbucket
 URL="https://bitbucket.org/multicoreware/x265_git/get/$VERSION.tar.gz"
 
 download "$URL" "$X265_TARBALL"
 
-# Unpack to a fixed directory name to simplify paths
 SRC_DIR_NAME="x265-src"
 mkdir -p "$SRC_DIR_NAME"
-# --strip-components=1 removes the top-level directory from the tarball
 tar -zxf "$X265_TARBALL" -C "$SRC_DIR_NAME" --strip-components=1
 checkStatus $? "Unpack failed"
 rm "$X265_TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 # 4. Patch CMakeLists.txt
-# x265's CMakeLists often needs tweaking for modern environments or static builds.
 CMAKE_FILE="source/CMakeLists.txt"
 echo "Patching $CMAKE_FILE..."
 
 if [ -f "$CMAKE_FILE" ]; then
-    # Ensure minimum CMake version
     run_sed '1a\
 cmake_minimum_required(VERSION 3.10)
 ' "$CMAKE_FILE"
 
-    # Fix project definition to enable ASM
     run_sed 's/project *\(.*\)/project(x265 CXX C ASM)/' "$CMAKE_FILE"
 
-    # Inject required include checks (using awk for complex insertion)
     awk '
     /project *\(.*\)/ {
         print;
@@ -91,7 +84,6 @@ cmake_minimum_required(VERSION 3.10)
     ' "$CMAKE_FILE" > "${CMAKE_FILE}.tmp" && mv "${CMAKE_FILE}.tmp" "$CMAKE_FILE"
     checkStatus $? "Failed to patch includes in CMakeLists.txt"
 
-    # macOS specific policy fix
     if [ "$OS_NAME" = "Darwin" ]; then
         run_sed '/cmake_minimum_required(VERSION 3.10)/a \
 cmake_policy(SET CMP0069 NEW)
@@ -112,15 +104,12 @@ NASM_FLAGS=""
 LLVM_PROFDATA_CMD=""
 
 if [ "$OS_NAME" = "Darwin" ]; then
-    # macOS/Clang PGO
     PGO_GEN_CFLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048"
     PGO_GEN_CXXFLAGS="-fprofile-generate -mllvm -vp-counters-per-site=2048"
     
-    # Locate llvm-profdata
     if command -v llvm-profdata >/dev/null 2>&1; then
         LLVM_PROFDATA_CMD=$(command -v llvm-profdata)
     else
-        # Try finding it in Xcode toolchain
         XCODE_TOOLCHAIN="$(xcode-select -p 2>/dev/null)/Toolchains/XcodeDefault.xctoolchain/usr/bin"
         if [ -x "$XCODE_TOOLCHAIN/llvm-profdata" ]; then
             LLVM_PROFDATA_CMD="$XCODE_TOOLCHAIN/llvm-profdata"
@@ -129,19 +118,17 @@ if [ "$OS_NAME" = "Darwin" ]; then
         fi
     fi
 else
-    # Linux/GCC PGO
     PGO_GEN_CFLAGS="-fprofile-generate"
     PGO_GEN_CXXFLAGS="-fprofile-generate"
     PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile"
     PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile"
-    NASM_FLAGS="-DENABLE_CET=0" # Fix for some GCC/NASM versions
+    NASM_FLAGS="-DENABLE_CET=0"
 fi
 
 # 6. PGO Step 1: Build Generators
 # ------------------------------------------------------------------------------
 echoSection "PGO Step 1: Building Generators"
 
-# Helper to build a generator (8, 10, or 12 bit)
 build_generator() {
     local bit_depth=$1
     local extra_cmake_flags=$2
@@ -174,7 +161,7 @@ fi
 
 # 7. PGO Step 2: Training
 # ------------------------------------------------------------------------------
-echoSection "PGO Step 2: Training (Video Encoding)"
+echoSection "PGO Step 2: Training (Custom Video Encoding)"
 
 train_generator() {
     local bit_depth=$1
@@ -187,8 +174,23 @@ train_generator() {
     
     for sample in "${samples[@]}"; do
         if [ -f "$sample_dir/$sample" ]; then
-            # Decompress and pipe to x265, discard output
-            xz -dc "$sample_dir/$sample" | ./x265 --y4m --input - -o /dev/null --preset veryfast --no-info --crf 26
+            # Use user-provided parameters:
+            # - preset veryslow, crf 28
+            # - pmode, no-info, rc-lookahead 250, gop-lookahead 50, open-gop
+            # - Added --frames 50 to prevent CI timeouts due to veryslow preset
+            echo "Running x265 training on $sample ($bit_depth-bit)..."
+            xz -dc "$sample_dir/$sample" | ./x265 \
+                --y4m \
+                --input - \
+                --output /dev/null \
+                --frames 50 \
+                --preset veryslow \
+                --crf 28 \
+                --pmode \
+                --no-info \
+                --rc-lookahead 250 \
+                --gop-lookahead 50 \
+                --open-gop > /dev/null 2>&1
         else
             echo "Warning: Sample $sample not found in $sample_dir. Skipping."
         fi
@@ -196,19 +198,16 @@ train_generator() {
     echo "$bit_depth-bit training done."
 }
 
-# Run training in parallel background jobs
-(train_generator "8") &
-PIDS="$!"
+# Run training sequentially instead of background jobs (&) 
+# because 'veryslow' preset is extremely CPU intensive. 
+# Running 8, 10, and 12-bit training simultaneously will cause memory/CPU thrashing.
+train_generator "8"
 
 if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
-    (train_generator "10") &
-    PIDS="$PIDS $!"
-    (train_generator "12") &
-    PIDS="$PIDS $!"
+    train_generator "10"
+    train_generator "12"
 fi
 
-echo "Waiting for training to complete (PIDs: $PIDS)..."
-wait
 checkStatus $? "PGO Training failed"
 
 # 8. PGO Step 3: Process Profiles
@@ -225,7 +224,6 @@ if [ "$OS_NAME" = "Darwin" ]; then
         PGO_USE_CFLAGS="-fprofile-use=${ABS_PROF_PATH}"
         PGO_USE_CXXFLAGS="-fprofile-use=${ABS_PROF_PATH}"
         
-        # Cleanup raw files
         rm -f */*.profraw
     else
         echo "ERROR: llvm-profdata missing, cannot complete PGO build."
@@ -235,39 +233,50 @@ else
     echo "Linux GCC uses .gcda files in-place. No merge needed."
 fi
 
-# Cleanup generator dirs to save space, but keep .gcda files for Linux!
-# For Linux, .gcda files are usually next to object files in the build dir.
-# Since we build the final version in NEW directories (10bit, 12bit), GCC needs to find the profile data.
-# However, GCC PGO usually expects the source to be recompiled in the same directory or strictly matched.
-# The original script deleted the generator directories: `rm -rf 8bitgen...`.
-# On Linux, this effectively throws away the training data if -fprofile-use expects them there.
-# BUT: The original script logic deleted them. We will follow the original logic to ensure behavior consistency,
-# assuming x265 might have installed the profiles or the flags handle it.
-rm -rf 8bitgen 10bitgen 12bitgen
+# Do NOT delete 8bitgen etc. on Linux, GCC needs the .gcda files located there.
+# If we delete them, -fprofile-use has no data to read.
+if [ "$OS_NAME" = "Darwin" ]; then
+    rm -rf 8bitgen 10bitgen 12bitgen
+fi
 
 # 9. Final Compilation
 # ------------------------------------------------------------------------------
 echoSection "Final Build"
 
-# Helper for Final Build
 build_final() {
     local bit_depth=$1
     local dir="${bit_depth}bit"
     local extra_flags=$2
     
     echo "Building Final $bit_depth-bit..."
-    mkdir -p "$dir"
-    cd "$dir" || exit 1
     
-    # shellcheck disable=SC2086
-    cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
-          -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
-          -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
-          $extra_flags \
-          -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
-          -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
-          ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
-          ../source
+    # For Linux GCC PGO, we must build in the exact same directory where training happened
+    # to find the .gcda files properly. For macOS Clang, we can create a new dir.
+    if [ "$OS_NAME" = "Linux" ]; then
+        dir="${bit_depth}bitgen"
+        cd "$dir" || exit 1
+        make clean
+        # Re-run cmake with USE flags in the existing dir
+        cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
+              -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+              -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
+              $extra_flags \
+              -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
+              -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
+              ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
+              ../source
+    else
+        mkdir -p "$dir"
+        cd "$dir" || exit 1
+        cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
+              -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
+              -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
+              $extra_flags \
+              -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
+              -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
+              ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
+              ../source
+    fi
           
     checkStatus $? "$bit_depth-bit final config failed"
     make -j "$CPUS"
@@ -276,28 +285,24 @@ build_final() {
 }
 
 if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
-    # --- Multibit Build Flow ---
-    
-    # 1. Build 10bit & 12bit (Static Libs only)
     build_final "10" "-DHIGH_BIT_DEPTH=ON -DEXPORT_C_API=OFF"
     build_final "12" "-DHIGH_BIT_DEPTH=ON -DMAIN12=ON -DEXPORT_C_API=OFF"
     
-    # 2. Symlink libs for 8bit linker to find
-    ln -sf 10bit/libx265.a libx265_10bit.a
-    ln -sf 12bit/libx265.a libx265_12bit.a
+    # Determine directory names based on OS logic above
+    LDIR="bit"
+    if [ "$OS_NAME" = "Linux" ]; then LDIR="bitgen"; fi
+
+    ln -sf 10${LDIR}/libx265.a libx265_10bit.a
+    ln -sf 12${LDIR}/libx265.a libx265_12bit.a
     
-    # 3. Build 8bit (linking 10 & 12)
-    # The 8bit library acts as the "main" interface
     echo "Building Final 8-bit (with 10/12bit linked)..."
     build_final "8" "-DEXTRA_LINK_FLAGS=-L. -DEXTRA_LIB=x265_10bit.a;x265_12bit.a -DLINKED_10BIT=ON -DLINKED_12BIT=ON"
     
-    # 4. Merge Libraries
     echo "Merging static libraries..."
-    mv 8bit/libx265.a libx265_8bit.a
+    mv 8${LDIR}/libx265.a libx265_8bit.a
     
     if [ "$OS_NAME" = "Linux" ]; then
         echo "Using GNU 'ar' script for merging..."
-        # This reconstructs the full archive
         ar -M <<EOF
 CREATE libx265.a
 ADDLIB libx265_8bit.a
@@ -313,15 +318,15 @@ EOF
         checkStatus $? "Library merge (libtool) failed"
     fi
     
-    # Move merged lib to 8bit folder for the install step
-    mv libx265.a 8bit/libx265.a
-
-    # Enter 8bit dir for installation
-    cd 8bit || exit 1
+    mv libx265.a 8${LDIR}/libx265.a
+    cd 8${LDIR} || exit 1
 else
-    # --- Single Bit Build Flow ---
-    build_final "single" ""
-    cd single || exit 1
+    build_final "8" ""
+    if [ "$OS_NAME" = "Linux" ]; then
+        cd 8bitgen || exit 1
+    else
+        cd 8bit || exit 1
+    fi
 fi
 
 # 10. Install
@@ -334,7 +339,6 @@ cd .. # Back to x265-src
 # ------------------------------------------------------------------------------
 echoSection "Post-Install Fixes"
 
-# Find the pkg-config file
 PC_FILE=""
 if [ -f "$TOOL_DIR/lib/pkgconfig/x265.pc" ]; then
     PC_FILE="$TOOL_DIR/lib/pkgconfig/x265.pc"
@@ -344,7 +348,6 @@ fi
 
 if [ -n "$PC_FILE" ]; then
     echo "Patching $PC_FILE for static linking..."
-    # Ensure -lpthread is present for static builds
     if ! grep -q -- "-lpthread" "$PC_FILE"; then
         if grep -q "^Libs.private:" "$PC_FILE"; then
             run_sed "s|^Libs.private:.*|& -lpthread|" "$PC_FILE"
