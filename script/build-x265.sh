@@ -188,7 +188,7 @@ train_generator() {
     for sample in "${samples[@]}"; do
         if [ -f "$sample_dir/$sample" ]; then
             # Decompress and pipe to x265, discard output
-            xz -dc "$sample_dir/$sample" | ./x265 --y4m --input - -o /dev/null --preset veryslow --no-info --crf 26
+            xz -dc "$sample_dir/$sample" | ./x265 --y4m --input - -o /dev/null --preset veryfast --no-info --crf 26
         else
             echo "Warning: Sample $sample not found in $sample_dir. Skipping."
         fi
