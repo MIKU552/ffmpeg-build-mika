@@ -97,22 +97,33 @@ fi
 # 5. Build Configuration Logic (Strict Ordering)
 # ------------------------------------------------------------------------------
 
+# OS-Specific Portable RPATH
+# Linux: $$ORIGIN tells the linker to look relative to the executable's path. (Needs $$ to escape Make)
+# macOS: We leave this empty because macOS portability is handled by relocateDylib (install_name_tool) in the main script.
+PORTABLE_RPATH=""
+if [ "$OS_NAME" = "Linux" ]; then
+    PORTABLE_RPATH='-Wl,-rpath,$$ORIGIN/../lib'
+fi
+
 # GROUP 1: Extra Flags & Paths (Will appear FIRST in ffmpeg -version)
 CONFIG_EXTRAS="--prefix=$OUT_DIR \
     --pkg-config-flags=--static \
     --extra-version=MiKayule-Shared-$(date +%Y%m%d) \
     --extra-cflags=-I$TOOL_DIR/include \
     --extra-ldflags=-L$TOOL_DIR/lib \
-    --extra-ldflags=-Wl,-rpath,$OUT_DIR/lib \
     --extra-libs=-lm \
     --extra-libs=-lpthread"
+
+# Only append RPATH if it's not empty (i.e., on Linux)
+if [ -n "$PORTABLE_RPATH" ]; then
+    CONFIG_EXTRAS="$CONFIG_EXTRAS --extra-ldflags=$PORTABLE_RPATH"
+fi
 
 if [ "$OS_NAME" = "Linux" ]; then
     CONFIG_EXTRAS="$CONFIG_EXTRAS --extra-libs=-ldl"
 fi
 
 # GROUP 2: Core Build Behaviors (Will appear MIDDLE)
-# Removed duplicated --enable-version3 as build_fix.sh already adds it.
 CONFIG_BEHAVIOR="--enable-shared \
     --disable-static \
     --disable-debug \
