@@ -80,9 +80,7 @@ During the build process, the compilers are fed with heavy workloads to optimize
 | **Video (H.264)** | `x264`, `openh264` |
 | **Audio** | **`fdk-aac`**, **`libsoxr`**, `mp3lame`, `opus`, `vorbis` |
 | **AI / Speech** | **`libwhisper`** (Whisper.cpp) |
-| **Hardware** | **Linux**: VAAPI, Vulkan, DRM<br>
-
-<br>**macOS**: VideoToolbox |
+| **Hardware** | **Linux**: VAAPI, Vulkan, DRM<br>**macOS**: VideoToolbox |
 | **Filters & Subs** | `libass`, `zimg`, `libvmaf`, `freetype`, `harfbuzz`, `fribidi` |
 
 ## 🛠️ Build Instructions
@@ -121,7 +119,7 @@ cargo install cargo-c --version 0.10.20 --locked
 
 ```bash
 brew update
-brew install automake libtool cmake ninja nasm pkg-config ccache wget xz
+brew install automake libtool cmake ninja pkg-config ccache wget xz
 
 # Install Rust
 curl https://sh.rustup.rs -sSf | sh -s -- -y

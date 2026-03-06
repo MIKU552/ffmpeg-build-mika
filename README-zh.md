@@ -4,7 +4,7 @@
 
 一个高度优化、全自动的 FFmpeg 编译脚本，支持 **Linux** 和 **macOS (Apple Silicon & Intel)**。
 
-本项目是基于 [Martin Riedl](https://gitlab.com/martinr92) 和 [Hayden Zheng (MiKayule)](https://github.com/MiKayule) 工作成果的深度重构分支。之前的版本虽然引入了基础的 PGO/LTO 优化，但**本分支对整个构建架构进行了彻底的重写**。它不仅实现了真正的跨平台稳定，解决了 Linux 环境下灾难性的原子锁竞争 Bug，还引入了先进的多进程 PGO 训练管线，新增了前沿的 AI 与音频组件，并完全打通了 CI/CD 自动化流程。
+本项目是基于 [Martin Riedl](https://gitlab.com/martinr92) 和 [Hayden Zheng (MiKayule)](https://github.com/MiKayule) 工作成果的深度重构分支。之前的版本虽然引入了基础的 PGO/LTO 优化，但**本分支对整个构建架构进行了彻底的重写**。它不仅实现了真正的跨平台稳定，还引入了先进的多进程 PGO 训练管线，新增了前沿的 AI 与音频组件，并完全打通了 CI/CD 自动化流程。
 
 ## 📥 预编译程序 (开箱即用)
 
@@ -80,9 +80,7 @@
 | **视频 (H.264)** | `x264`, `openh264` |
 | **音频** | **`fdk-aac`**, **`libsoxr`**, `mp3lame`, `opus`, `vorbis` |
 | **AI / 语音** | **`libwhisper`** (Whisper.cpp) |
-| **硬件加速** | **Linux**: VAAPI, Vulkan, DRM<br>
-
-<br>**macOS**: VideoToolbox |
+| **硬件加速** | **Linux**: VAAPI, Vulkan, DRM<br>**macOS**: VideoToolbox |
 | **滤镜与字幕** | `libass`, `zimg`, `libvmaf`, `freetype`, `harfbuzz`, `fribidi` |
 
 ## 🛠️ 编译指南
@@ -121,7 +119,7 @@ cargo install cargo-c --version 0.10.20 --locked
 
 ```bash
 brew update
-brew install automake libtool cmake ninja nasm pkg-config ccache wget xz
+brew install automake libtool cmake ninja pkg-config ccache wget xz
 
 # 安装 Rust
 curl https://sh.rustup.rs -sSf | sh -s -- -y
@@ -187,7 +185,7 @@ cd build
 
 * **Martin Riedl**: 制定了本构建脚本系统的最初基础架构。
 * **Hayden Zheng (MiKayule)**: 引入了早期的 PGO/LTO 优化策略，以及最初的 VVC 编解码器支持。
-* **This Branch (本分支)**: 实现了真正的跨平台 PGO 架构，修复了 Linux 下导致死锁的原子锁并发 Bug，精准匹配 Clang 模板可见性问题，引入了增量编译、硬件加速深度集成以及高强度的 CI 全自动化。
+* **This Branch (本分支)**: 实现了真正的跨平台 PGO 架构，引入了增量编译、硬件加速深度集成以及高强度的 CI 全自动化。
 
 ## ⚖️ 许可证
 
