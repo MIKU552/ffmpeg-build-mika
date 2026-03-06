@@ -70,17 +70,19 @@ fi
 # 5. Configure
 echo "Configuring libxml2..."
 
-# Flags:
-# --enable-static / --disable-shared: Static linking requirement.
-# --without-python: No Python bindings needed.
-# --with-ftp=no / --with-http=no: Disable internal network stack (FFmpeg handles IO).
-# --with-legacy=no: Disable deprecated APIs.
-# --without-lzma: Reduce dependency complexity (optional).
-# --with-zlib: Enable zlib support (using our static zlib).
+# ==============================================================================
+# Cross-Compile Autotools Setup
+# ==============================================================================
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
+
 ./configure \
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --without-python \
     --with-ftp=no \
     --with-http=no \
