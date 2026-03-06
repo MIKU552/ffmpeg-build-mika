@@ -59,16 +59,24 @@ cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring OpenSSL..."
 
-# Flags:
-# --prefix: Install root.
-# --openssldir: Configuration directory (certs, private keys).
-# --libdir=lib: Force install to 'lib' directory (avoids lib64 issues).
-# no-shared: Build static libraries only.
-# no-dso: Disable dynamic loading (not needed for static).
-# no-tests: Skip building tests (saves significant time).
-./config \
+# ==============================================================================
+# OpenSSL Cross-Compilation Override
+# OpenSSL uses a custom Perl Configure script. If we don't explicitly tell it 
+# we are targeting Windows, it will guess Linux, causing LP64 vs LLP64 crashes.
+# ==============================================================================
+CONFIG_CMD="./config"
+CROSS_FLAGS=""
+
+if [ "$TARGET_OS" = "Windows" ]; then
+    # 不用 config 瞎猜，直接用 Configure 强行指定 mingw64 目标
+    CONFIG_CMD="./Configure"
+    CROSS_FLAGS="mingw64 --cross-compile-prefix=x86_64-w64-mingw32-"
+fi
+
+# 执行配置 (保留你原有的其他参数，比如 no-shared 等)
+$CONFIG_CMD \
+    $CROSS_FLAGS \
     --prefix="$TOOL_DIR" \
-    --openssldir="$TOOL_DIR/ssl" \
     --libdir=lib \
     no-shared \
     no-dso \
