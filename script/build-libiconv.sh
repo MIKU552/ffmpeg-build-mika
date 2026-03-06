@@ -72,7 +72,7 @@ fi
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
-    $CROSS_HOST_FLAG
+    $CROSS_HOST_FLAG \
     --enable-extra-encodings \
     --with-pic
 

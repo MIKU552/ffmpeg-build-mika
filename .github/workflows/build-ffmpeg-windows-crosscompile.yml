@@ -66,12 +66,12 @@ jobs:
 
       - name: Upload Build Logs and Artifacts
         uses: actions/upload-artifact@v4
-        if: always() # 核心：无论前面哪一步爆炸，这步都必须强制执行！
+        if: always()
         with:
           name: windows-cross-compile-logs
           path: |
-            log/*.log         # 抓取你脚本生成的全量模块日志 (最重要！)
-            build/**/*.log    # 抓取 CMake 或底层的其他零散日志
+            log/*.log
+            build/**/*.log
             build/out/bin/*.exe
             build/out/bin/*.dll
-          retention-days: 7   # 把保留时间延长到 7 天，方便你周末慢慢看
+          retention-days: 7
