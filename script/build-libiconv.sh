@@ -59,13 +59,20 @@ cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring libiconv..."
 
-# Flags:
-# --enable-static / --disable-shared: Force static build for portability.
-# --with-pic: Ensure Position Independent Code (crucial for linking static libs into shared ones later).
+# ==============================================================================
+# Cross-Compile Autotools Setup
+# Tell configure we are cross-compiling so it skips execution tests.
+# ==============================================================================
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
+
 ./configure \
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG
     --enable-extra-encodings \
     --with-pic
 
