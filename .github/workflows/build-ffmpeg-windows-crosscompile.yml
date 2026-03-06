@@ -33,8 +33,28 @@ jobs:
         run: |
           curl https://sh.rustup.rs -sSf | sh -s -- -y
           source "$HOME/.cargo/env"
-          # 关键：告诉 Rust 我们要编译 Windows 版本的代码（供 rav1e 等使用）
           rustup target add x86_64-pc-windows-gnu
+
+      - name: Cache cargo-c
+        id: cache-cargo-c
+        uses: actions/cache@v4
+        with:
+          # 提取 cargo-c 相关的二进制文件和底层依赖包缓存
+          path: |
+            ~/.cargo/bin/cargo-capi
+            ~/.cargo/bin/cargo-cbuild
+            ~/.cargo/bin/cargo-cinstall
+            ~/.cargo/bin/cargo-ctest
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          # 缓存的 Key 绑定了系统和版本号，如果你以后升级 0.10.20，改这里的 Key 就会自动刷新缓存
+          key: ${{ runner.os }}-cargo-c-0.10.20
+
+      - name: Install cargo-c (If not cached)
+        if: steps.cache-cargo-c.outputs.cache-hit != 'true'
+        run: |
+          source "$HOME/.cargo/env"
           cargo install cargo-c --version 0.10.20 --locked
 
       - name: Build FFmpeg
