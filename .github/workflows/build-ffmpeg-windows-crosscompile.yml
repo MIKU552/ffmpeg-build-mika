@@ -1,0 +1,56 @@
+name: FFmpeg Windows Cross-Compile
+
+on:
+  push:
+    branches:
+      - feature/cross-compile-windows # <--- 改成这个
+  pull_request:
+    branches:
+      - feature/cross-compile-windows # <--- 改成这个
+
+jobs:
+  build-windows-x64:
+    name: Build for Windows x86_64
+    runs-on: ubuntu-24.04 # 依然使用极速的 Ubuntu 虚拟机
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies (MinGW-w64 & Wine)
+        run: |
+          sudo apt-get update
+          # 保留基础构建工具，并加入 Windows 交叉编译两大神器：mingw-w64 和 wine64
+          sudo apt-get install -y --no-install-recommends \
+              build-essential gcc g++ binutils make cmake ninja-build pkg-config \
+              curl wget patch tar gzip bzip2 xz-utils zip python3 python3-pip \
+              python3-venv python3-virtualenv nasm git-lfs docbook-utils \
+              xsltproc asciidoc xmlto gperf autopoint automake libtool autoconf \
+              gettext liblzma-dev libnuma-dev libssl-dev ccache \
+              mingw-w64 wine64
+              
+      - name: Setup Rust for Windows Target
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          source "$HOME/.cargo/env"
+          # 关键：告诉 Rust 我们要编译 Windows 版本的代码（供 rav1e 等使用）
+          rustup target add x86_64-pc-windows-gnu
+          cargo install cargo-c --version 0.10.20 --locked
+
+      - name: Build FFmpeg
+        run: |
+          source "$HOME/.cargo/env"
+          # 我们预留一个 TARGET_OS=Windows 的参数，等下在任务 2 里去脚本里解析它
+          # 先关闭打包和测试，专注于纯粹的编译
+          ./build_fix.sh -SKIP_BUNDLE=YES -SKIP_TEST=YES -TARGET_OS=Windows
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        if: always() # 即使失败也上传，方便我们查看生成的日志或半成品
+        with:
+          name: ffmpeg-windows-build
+          path: |
+            build/out/bin/*.exe
+            build/out/bin/*.dll
+            build/**/*.log
+          retention-days: 3
