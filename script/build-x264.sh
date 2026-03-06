@@ -42,11 +42,17 @@ checkStatus $? "Unpack failed"
 
 # 5. Configure
 echo "Configuring x264..."
+
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # --enable-pic: Critical for linking this static lib into FFmpeg's shared libs
 # --disable-cli: We only need the library, not the executable
 ./configure \
     --prefix="$TOOL_DIR" \
     --enable-static \
+    $CROSS_HOST_FLAG \
     --enable-pic \
     --disable-cli
 

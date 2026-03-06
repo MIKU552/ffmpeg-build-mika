@@ -59,7 +59,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring FriBidi..."
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --disable-docs: Skip documentation build.
 # --disable-debug: Release build without debug symbols.
@@ -68,6 +71,7 @@ echo "Configuring FriBidi..."
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --disable-docs \
     --disable-debug
 

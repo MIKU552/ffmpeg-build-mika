@@ -78,7 +78,10 @@ if [ ! -f "configure" ]; then
         exit 1
     fi
 fi
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --enable-static / --disable-shared: Static build.
 # --with-pic: Position Independent Code (recommended for static libs).
@@ -88,6 +91,7 @@ fi
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --with-pic \
     --disable-extra-programs \
     --disable-doc

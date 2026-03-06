@@ -70,7 +70,10 @@ echo "Configuring ZVBI..."
 # CFLAGS:
 # -D_GNU_SOURCE: Required for some Linux builds to expose libc features.
 export CFLAGS="-D_GNU_SOURCE ${CFLAGS}"
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --enable-static / --disable-shared: Static linking requirement.
 # --without-libpng: Disable PNG export support to reduce dependencies (FFmpeg doesn't strictly need it).
@@ -81,6 +84,7 @@ export CFLAGS="-D_GNU_SOURCE ${CFLAGS}"
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --without-libpng \
     --without-x \
     --disable-proxy \

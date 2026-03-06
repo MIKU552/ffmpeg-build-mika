@@ -59,7 +59,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring pkg-config..."
-
+if [ "$TARGET_OS" = "Windows" ]; then
+    echo "Reverting to native Linux compiler for NASM host tool..."
+    unset CC CXX AR AS LD RANLIB STRIP NM WINDRES PKG_CONFIG_LIBDIR
+fi
 # Compiler Flags:
 # The internal GLib used by pkg-config is old and triggers errors on modern Clang/GCC.
 # Specifically, strict integer conversion checks on macOS need to be relaxed.

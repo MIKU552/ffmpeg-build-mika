@@ -68,10 +68,16 @@ checkStatus $? "Autoreconf failed"
 
 echo "Configuring fdk-aac..."
 # --enable-static / --disable-shared: Critical for single-binary FFmpeg distribution
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
+
 ./configure \
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --with-pic
 
 checkStatus $? "Configuration failed"

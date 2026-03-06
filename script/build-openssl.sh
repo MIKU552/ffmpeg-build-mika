@@ -77,6 +77,7 @@ fi
 $CONFIG_CMD \
     $CROSS_FLAGS \
     --prefix="$TOOL_DIR" \
+    --openssldir="$TOOL_DIR/ssl" \
     --libdir=lib \
     no-shared \
     no-dso \

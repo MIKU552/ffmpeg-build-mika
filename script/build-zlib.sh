@@ -66,12 +66,16 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring zlib..."
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --prefix: Install location.
 # --static: Build only static library (libz.a).
 ./configure \
     --prefix="$TOOL_DIR" \
+    $CROSS_HOST_FLAG \
     --static
 
 checkStatus $? "Configuration failed"

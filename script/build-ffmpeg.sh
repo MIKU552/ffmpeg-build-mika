@@ -144,9 +144,12 @@ run_configure() {
     # Inject PGO flags into the FIRST group if they exist
     if [ -n "$PGO_C" ]; then CURRENT_EXTRAS="$CURRENT_EXTRAS --extra-cflags=$PGO_C"; fi
     if [ -n "$PGO_L" ]; then CURRENT_EXTRAS="$CURRENT_EXTRAS --extra-ldflags=$PGO_L"; fi
-
+    CROSS_HOST_FLAG=""
+    if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+    fi
     echo "Executing: ./configure $CURRENT_EXTRAS $CONFIG_BEHAVIOR $CONFIG_LIBS"
-    ./configure $CURRENT_EXTRAS $CONFIG_BEHAVIOR $CONFIG_LIBS
+    ./configure $CURRENT_EXTRAS $CONFIG_BEHAVIOR $CONFIG_LIBS $CROSS_HOST_FLAG
 }
 
 # 6. PGO Build Loop

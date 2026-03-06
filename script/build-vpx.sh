@@ -72,7 +72,10 @@ if [ "$ARCH" = "x86_64" ]; then
 else
     echo "Non-x86 architecture detected ($ARCH): NASM disabled."
 fi
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --enable-vp9-highbitdepth: Enable 10/12-bit encoding support (Crucial for HDR).
 # --enable-pic: Position Independent Code (good practice for static libs).
@@ -81,6 +84,7 @@ fi
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --disable-examples \
     --disable-tools \
     --disable-docs \

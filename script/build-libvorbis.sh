@@ -75,7 +75,10 @@ fi
 
 # 5. Configure
 echo "Configuring libvorbis..."
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --enable-static / --disable-shared: Static linking requirement.
 # --disable-docs / --disable-examples: Simplify build.
@@ -85,6 +88,7 @@ echo "Configuring libvorbis..."
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --disable-docs \
     --disable-examples
 

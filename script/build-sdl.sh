@@ -59,7 +59,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring SDL2..."
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --enable-static / --disable-shared: Static linking requirement.
 # --enable-system-iconv=no: Use SDL's internal iconv implementation (safer for static builds).
@@ -68,6 +71,7 @@ echo "Configuring SDL2..."
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --enable-system-iconv=no \
     --disable-rpath
 

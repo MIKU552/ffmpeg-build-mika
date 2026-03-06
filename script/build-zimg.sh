@@ -64,7 +64,10 @@ echo "Generating build system..."
 checkStatus $? "Autogen failed"
 
 echo "Configuring zimg..."
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --enable-static / --disable-shared: Static linking requirement.
 # --libdir: Force install to 'lib' to avoid 'lib64' confusion on some distros.
@@ -72,6 +75,7 @@ echo "Configuring zimg..."
     --prefix="$TOOL_DIR" \
     --libdir="$TOOL_DIR/lib" \
     --enable-static \
+    $CROSS_HOST_FLAG \
     --disable-shared
 
 checkStatus $? "Configuration failed"

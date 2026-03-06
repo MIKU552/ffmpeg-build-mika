@@ -59,7 +59,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring libbluray..."
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --disable-bdjava-jar: Disable BD-J (Java) support to avoid JDK dependency.
 # --disable-examples: Skip building example binaries.
@@ -69,6 +72,7 @@ echo "Configuring libbluray..."
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --disable-bdjava-jar \
     --disable-examples \
     --disable-doxygen-doc

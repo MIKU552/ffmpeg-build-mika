@@ -58,7 +58,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring LAME..."
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --enable-static / --disable-shared: Static linking requirement.
 # --disable-frontend: Do not build the 'lame' executable, only the library (libmp3lame).
@@ -67,6 +70,7 @@ echo "Configuring LAME..."
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --disable-frontend \
     --enable-nasm
 

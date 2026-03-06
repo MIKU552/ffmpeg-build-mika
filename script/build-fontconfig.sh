@@ -58,7 +58,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring Fontconfig..."
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --enable-libxml2: Use libxml2 for parsing configuration (we built this statically).
 # --disable-docs: Skip documentation build to avoid docbook dependencies.
@@ -67,6 +70,7 @@ echo "Configuring Fontconfig..."
     --prefix="$TOOL_DIR" \
     --enable-static \
     --disable-shared \
+    $CROSS_HOST_FLAG \
     --enable-libxml2 \
     --enable-iconv \
     --disable-docs

@@ -58,12 +58,16 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring libogg..."
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 # Flags:
 # --enable-static / --disable-shared: Static linking requirement.
 ./configure \
     --prefix="$TOOL_DIR" \
     --enable-static \
+    $CROSS_HOST_FLAG \
     --disable-shared
 
 checkStatus $? "Configuration failed"

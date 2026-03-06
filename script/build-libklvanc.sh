@@ -67,11 +67,15 @@ else
     autoreconf -fiv
     checkStatus $? "Autoreconf failed"
 fi
-
+CROSS_HOST_FLAG=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CROSS_HOST_FLAG="--host=x86_64-w64-mingw32"
+fi
 echo "Configuring libklvanc..."
 ./configure \
     --prefix="$TOOL_DIR" \
     --enable-shared=no \
+    $CROSS_HOST_FLAG \
     --enable-static
 
 checkStatus $? "Configuration failed"
