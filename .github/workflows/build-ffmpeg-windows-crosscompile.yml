@@ -49,7 +49,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
           # 缓存的 Key 绑定了系统和版本号，如果你以后升级 0.10.20，改这里的 Key 就会自动刷新缓存
-          key: ${{ runner.os }}-cargo-c-0.10.20
+          key: ${{ runner.os }}-cargo-c-0.10.20-
 
       - name: Install cargo-c (If not cached)
         if: steps.cache-cargo-c.outputs.cache-hit != 'true'
