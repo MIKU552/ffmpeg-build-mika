@@ -1,4 +1,0 @@
-sample/stefan_sif.y4m.xz filter=lfs diff=lfs merge=lfs -text
-sample/taikotemoto.y4m.xz filter=lfs diff=lfs merge=lfs -text
-sample/4k_bbb.y4m.xz filter=lfs diff=lfs merge=lfs -text
-sample/720p_bbb.y4m.xz filter=lfs diff=lfs merge=lfs -text

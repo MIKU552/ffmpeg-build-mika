@@ -98,12 +98,12 @@ fi
 # ------------------------------------------------------------------------------
 
 # OS-Specific Portable RPATH
-# Linux: $ORIGIN tells the linker to look relative to the executable's path.
-# CRITICAL FIX: We must use \$\$ so it survives FFmpeg's internal `eval` inside configure, 
-# then becomes $$ in Makefile, and finally $ORIGIN to gcc.
 PORTABLE_RPATH=""
 if [ "$OS_NAME" = "Linux" ]; then
-    PORTABLE_RPATH='-Wl,-rpath,\$\$ORIGIN/../lib'
+    PORTABLE_RPATH='-Wl,-rpath,'
+    PORTABLE_RPATH+=\'
+    PORTABLE_RPATH+='\$\$ORIGIN/../lib'
+    PORTABLE_RPATH+=\'
 fi
 
 # GROUP 1: Extra Flags & Paths (Will appear FIRST in ffmpeg -version)
