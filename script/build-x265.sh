@@ -199,12 +199,21 @@ train_generator() {
             fi
         done
     else
-
+        # Linux / GCC: Parallel training requires profile data isolation to prevent corruption
         PIDS=""
+        # We need an index to create unique directories
+        local i=0
         for sample in "${samples[@]}"; do
             if [ -f "$sample_dir/$sample" ]; then
                 echo "Running x265 training on $sample ($bit_depth-bit) in background..."
                 (
+                    # CRITICAL FIX for GCC PGO Corruption:
+                    # Isolate the .gcda output for each parallel process using GCOV_PREFIX
+                    # GCOV_PREFIX_STRIP removes the absolute path prefix so it builds relative to GCOV_PREFIX
+                    export GCOV_PREFIX="$(pwd)/pgo_data_$i"
+                    export GCOV_PREFIX_STRIP=0
+                    mkdir -p "$GCOV_PREFIX"
+
                     xz -dc "$sample_dir/$sample" | ./x265 \
                         --y4m \
                         --input - \
@@ -215,7 +224,7 @@ train_generator() {
                         --rc-lookahead 250 \
                         --open-gop \
                         --pools 1 \
-                        --frame-threads 1
+                        --frame-threads 1 > /dev/null 2>&1
                         
                     if [ ${PIPESTATUS[1]} -ne 0 ]; then
                         echo "ERROR: x265 training crashed on $sample!"
@@ -223,6 +232,7 @@ train_generator() {
                     fi
                 ) &
                 PIDS="$PIDS $!"
+                ((i++))
             else
                 echo "Warning: Sample $sample not found. Skipping."
             fi
@@ -237,7 +247,7 @@ train_generator() {
     cd "$current_dir" || return
 }
 
-# Run training sequentially
+# Run training sequentially (bit-depth by bit-depth, but samples parallel within)
 train_generator "8"
 
 if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
@@ -245,7 +255,6 @@ if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
     train_generator "12"
 fi
 
-# We don't need 'wait' anymore since we removed the '&' background jobs.
 checkStatus $? "PGO Training failed"
 
 # 8. PGO Step 3: Process Profiles
@@ -267,14 +276,53 @@ if [ "$OS_NAME" = "Darwin" ]; then
         echo "ERROR: llvm-profdata missing, cannot complete PGO build."
         exit 1
     fi
-else
-    echo "Linux GCC uses .gcda files in-place. No merge needed."
-fi
-
-# Do NOT delete 8bitgen etc. on Linux, GCC needs the .gcda files located there.
-# If we delete them, -fprofile-use has no data to read.
-if [ "$OS_NAME" = "Darwin" ]; then
     rm -rf 8bitgen 10bitgen 12bitgen
+else
+    echo "Linux GCC: Consolidating isolated .gcda files..."
+    # We must merge the separated .gcda files back into the main tree
+    # Since we ran 4 samples, we have pgo_data_0 through pgo_data_3.
+    # GCC's profile-use expects them in the exact same directory structure as the object files.
+    
+    # We will use a quick find/rsync or cp trick to overlay them.
+    # Actually, gcov-tool merge is the correct way if we have multiple directories of the same structure.
+    
+    for bdir in 8bitgen 10bitgen 12bitgen; do
+        if [ -d "$bdir" ]; then
+            cd "$bdir" || continue
+            echo "Merging profile data in $bdir..."
+            
+            # Use gcov-tool to merge the isolated directories.
+            # We assume at least pgo_data_0 exists.
+            if [ -d "pgo_data_0" ]; then
+                # Start by copying data_0 to a final 'merged_profile' directory
+                cp -a pgo_data_0 merged_profile
+                
+                # Merge remaining directories into 'merged_profile'
+                for i in 1 2 3; do
+                    if [ -d "pgo_data_$i" ]; then
+                        # gcov-tool merge <dir1> <dir2> -o <outdir>
+                        # It merges dir1 and dir2 and writes to outdir
+                        gcov-tool merge merged_profile "pgo_data_$i" -o merged_profile_tmp
+                        rm -rf merged_profile
+                        mv merged_profile_tmp merged_profile
+                    fi
+                done
+                
+                # Now, move the merged .gcda files out of 'merged_profile' back to the root of the build dir
+                # so the compiler finds them exactly where the .o files are.
+                # GCOV_PREFIX recreated the full path (e.g., /home/runner/.../8bitgen) inside the prefix.
+                # We need to extract just the files.
+                
+                # Find all .gcda files in the merged output and move them to their correct relative paths
+                # The structure inside merged_profile looks like: merged_profile/home/runner/.../8bitgen/CMakeFiles/...
+                # We need to strip the prefix path. The easiest way is to let GCC use the directory directly.
+            fi
+            cd ..
+        fi
+    done
+    
+    # We will tell GCC exactly where to find the profile data using -fprofile-dir
+    # We adjust PGO_USE_CFLAGS to point to the merged directory.
 fi
 
 # 9. Final Compilation
@@ -288,19 +336,22 @@ build_final() {
     
     echo "Building Final $bit_depth-bit..."
     
-    # For Linux GCC PGO, we must build in the exact same directory where training happened
-    # to find the .gcda files properly. For macOS Clang, we can create a new dir.
     if [ "$OS_NAME" = "Linux" ]; then
         dir="${bit_depth}bitgen"
         cd "$dir" || exit 1
         make clean
-        # Re-run cmake with USE flags in the existing dir
+        
+        # Point GCC to the merged profile directory we created in Step 8
+        local abs_prof_dir="$(pwd)/merged_profile$(pwd)"
+        local gcc_use_cflags="$PGO_USE_CFLAGS -fprofile-dir=${abs_prof_dir}"
+        local gcc_use_cxxflags="$PGO_USE_CXXFLAGS -fprofile-dir=${abs_prof_dir}"
+
         cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
               -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
               -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
               $extra_flags \
-              -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
-              -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
+              -DCMAKE_C_FLAGS="$gcc_use_cflags" \
+              -DCMAKE_CXX_FLAGS="$gcc_use_cxxflags" \
               ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
               ../source
     else

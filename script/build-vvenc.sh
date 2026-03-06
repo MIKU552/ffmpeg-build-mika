@@ -95,7 +95,7 @@ if [ "$OS_NAME" = "Darwin" ]; then
         ENABLE_PGO="NO"
     fi
 else
-    # Linux (GCC)
+    # Linux (GCC) - No atomic flags, we rely on GCOV_PREFIX isolation
     PGO_GEN_FLAGS="-fprofile-generate"
     PGO_GEN_CFLAGS="$PGO_GEN_FLAGS"
     PGO_GEN_CXXFLAGS="$PGO_GEN_FLAGS"
@@ -138,11 +138,19 @@ if [ "$ENABLE_PGO" = "YES" ]; then
         done
     else
         PIDS=""
+        i=0
         for sample in "${SAMPLES[@]}"; do
             echo "Training on $sample in background..."
             (
+                # =====================================================
+                # CRITICAL FIX: Isolate profile data for each process
+                # =====================================================
+                export GCOV_PREFIX="$(pwd)/pgo_data_$i"
+                export GCOV_PREFIX_STRIP=0
+                mkdir -p "$GCOV_PREFIX"
+                
                 xz -dc "$SAMPLE_DIR/$sample" | \
-                $APP -i - --y4m --preset slow -q 26 --threads 1 -o /dev/null
+                $APP -i - --y4m --preset slow -q 26 --threads 1 -o /dev/null > /dev/null 2>&1
                 
                 if [ ${PIPESTATUS[1]} -ne 0 ]; then
                     echo "ERROR: vvencapp training crashed on $sample!"
@@ -150,6 +158,7 @@ if [ "$ENABLE_PGO" = "YES" ]; then
                 fi
             ) &
             PIDS="$PIDS $!"
+            ((i++))
         done
         
         FAIL=0
@@ -171,11 +180,26 @@ if [ "$ENABLE_PGO" = "YES" ]; then
         rm -rf $BUILD_DIR install-pgo
         FINAL_BUILD_DIR="build-final"
     else
-        # Added -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than
-        PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
-        PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
-        # CRITICAL FIX: For Linux GCC, we MUST re-use the exact same build directory
-        # so CMake triggers a recompile that overwrites .o but reads the .gcda files.
+        # =====================================================
+        # Merge isolated .gcda files using gcov-tool
+        # =====================================================
+        echo "Linux GCC: Consolidating isolated .gcda files..."
+        if [ -d "pgo_data_0" ]; then
+            cp -a pgo_data_0 merged_profile
+            for idx in 1 2 3; do
+                if [ -d "pgo_data_$idx" ]; then
+                    gcov-tool merge merged_profile "pgo_data_$idx" -o merged_profile_tmp
+                    rm -rf merged_profile
+                    mv merged_profile_tmp merged_profile
+                fi
+            done
+        fi
+        
+        # Tell GCC exactly where the safely merged profile data lives
+        ABS_PROF_DIR="$(pwd)/merged_profile$(pwd)"
+        PGO_USE_CFLAGS="-fprofile-dir=${ABS_PROF_DIR} -fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
+        PGO_USE_CXXFLAGS="-fprofile-dir=${ABS_PROF_DIR} -fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
+        
         FINAL_BUILD_DIR="$BUILD_DIR"
         rm -rf install-pgo
     fi
