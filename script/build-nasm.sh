@@ -76,11 +76,14 @@ cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring NASM..."
 
-# If downloading from GitHub, 'configure' might be missing
-if [ ! -f "configure" ]; then
-    echo "configure script not found. Running autogen.sh..."
-    ./autogen.sh
-    checkStatus $? "Autogen failed"
+# ==============================================================================
+# CRITICAL FIX: NASM is a Host Build Tool
+# It must be compiled as a native Linux executable, NOT a Windows executable.
+# We unset the cross-compilation environment variables injected by the main script.
+# ==============================================================================
+if [ "$TARGET_OS" = "Windows" ]; then
+    echo "Reverting to native Linux compiler for NASM host tool..."
+    unset CC CXX AR AS LD RANLIB STRIP NM WINDRES PKG_CONFIG_LIBDIR
 fi
 
 ./configure \
