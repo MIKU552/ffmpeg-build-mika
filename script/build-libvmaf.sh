@@ -64,7 +64,11 @@ prepareMeson
 cd "$SRC_DIR_NAME/libvmaf" || exit 1
 
 echo "Configuring libvmaf..."
-
+MESON_CROSS_FLAGS=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    # 强制指定交叉编译文件
+    MESON_CROSS_FLAGS="--cross-file $SCRIPT_DIR/mingw64-meson.txt"
+fi
 # Options:
 # --libdir=lib: Force install to 'lib' directory.
 # --default-library=static: Static linking requirement.
@@ -74,6 +78,7 @@ meson setup build \
     --prefix="$TOOL_DIR" \
     --libdir=lib \
     --default-library=static \
+    $MESON_CROSS_FLAGS \
     --buildtype=release \
     -Dbuilt_in_models=true \
     -Db_lto=true \

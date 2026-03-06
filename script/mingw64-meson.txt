@@ -1,0 +1,19 @@
+[binaries]
+c = 'x86_64-w64-mingw32-gcc'
+cpp = 'x86_64-w64-mingw32-g++'
+ar = 'x86_64-w64-mingw32-ar'
+strip = 'x86_64-w64-mingw32-strip'
+pkgconfig = 'pkg-config'
+windres = 'x86_64-w64-mingw32-windres'
+# 告诉 Meson，如果非要运行目标程序，可以用 wine64
+exe_wrapper = 'wine64'
+
+[host_machine]
+system = 'windows'
+cpu_family = 'x86_64'
+cpu = 'x86_64'
+endian = 'little'
+
+[properties]
+# 注入你的工具链路径，确保能找到库
+pkg_config_libdir = '$ENV{TOOL_DIR}/lib/pkgconfig'

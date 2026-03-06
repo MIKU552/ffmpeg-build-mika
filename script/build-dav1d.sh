@@ -61,7 +61,11 @@ prepareMeson
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring dav1d..."
-
+MESON_CROSS_FLAGS=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    # 强制指定交叉编译文件
+    MESON_CROSS_FLAGS="--cross-file $SCRIPT_DIR/mingw64-meson.txt"
+fi
 # Options:
 # --libdir=lib: Force install to 'lib' (not lib64) to match our TOOL_DIR layout
 # --default-library=static: We need static .a files for FFmpeg
@@ -71,6 +75,7 @@ meson setup build \
     --prefix="$TOOL_DIR" \
     --libdir=lib \
     --default-library=static \
+    $MESON_CROSS_FLAGS \
     -Dbuildtype=release \
     -Db_lto=true
 
