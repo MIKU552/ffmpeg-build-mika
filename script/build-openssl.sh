@@ -80,6 +80,7 @@ $CONFIG_CMD \
     --libdir=lib \
     no-shared \
     no-dso \
+    no-quic \
     no-tests
 
 checkStatus $? "Configuration failed"
