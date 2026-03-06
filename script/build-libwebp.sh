@@ -58,7 +58,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring libwebp..."
-
+CMAKE_CROSS_FLAGS=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CMAKE_CROSS_FLAGS="-DCMAKE_TOOLCHAIN_FILE=$SCRIPT_DIR/mingw64.cmake"
+fi
 # CMake Options:
 # - BUILD_SHARED_LIBS=OFF: Static build.
 # - WEBP_BUILD_LIBWEBPMUX=ON: Essential for Animated WebP support in FFmpeg.
@@ -67,6 +70,7 @@ echo "Configuring libwebp..."
 cmake -S . -B build -G "Unix Makefiles" \
     -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
     -DBUILD_SHARED_LIBS=OFF \
+    $CMAKE_CROSS_FLAGS \
     -DWEBP_BUILD_LIBWEBPMUX=ON \
     -DWEBP_BUILD_LIBWEBPDEMUX=ON \
     -DWEBP_BUILD_CWEBP=OFF \

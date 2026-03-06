@@ -58,7 +58,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring SRT..."
-
+CMAKE_CROSS_FLAGS=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CMAKE_CROSS_FLAGS="-DCMAKE_TOOLCHAIN_FILE=$SCRIPT_DIR/mingw64.cmake"
+fi
 # CMake Options:
 # - CMAKE_INSTALL_LIBDIR=lib: Force install to 'lib' (not lib64).
 # - ENABLE_SHARED=OFF: Static build.
@@ -71,6 +74,7 @@ cmake -S . -B build -G "Unix Makefiles" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DENABLE_SHARED=OFF \
     -DENABLE_STATIC=ON \
+    $CMAKE_CROSS_FLAGS \
     -DENABLE_APPS=OFF \
     -DENABLE_HEAVY_LOGGING=OFF \
     -DOPENSSL_ROOT_DIR="$TOOL_DIR" \

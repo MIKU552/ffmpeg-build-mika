@@ -58,7 +58,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring Snappy..."
-
+CMAKE_CROSS_FLAGS=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CMAKE_CROSS_FLAGS="-DCMAKE_TOOLCHAIN_FILE=$SCRIPT_DIR/mingw64.cmake"
+fi
 # CMake Options:
 # - BUILD_SHARED_LIBS=OFF: Static linking requirement.
 # - CMAKE_INSTALL_LIBDIR=lib: Force install to 'lib' (avoids lib64 on some distros).
@@ -67,6 +70,7 @@ cmake -S . -B build -G "Unix Makefiles" \
     -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DBUILD_SHARED_LIBS=OFF \
+    $CMAKE_CROSS_FLAGS \
     -DSNAPPY_BUILD_TESTS=OFF \
     -DSNAPPY_BUILD_BENCHMARKS=OFF
 

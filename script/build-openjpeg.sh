@@ -58,7 +58,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring OpenJPEG..."
-
+CMAKE_CROSS_FLAGS=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CMAKE_CROSS_FLAGS="-DCMAKE_TOOLCHAIN_FILE=$SCRIPT_DIR/mingw64.cmake"
+fi
 # CMake Options:
 # - BUILD_SHARED_LIBS=OFF: Static build.
 # - BUILD_CODEC=OFF: Don't build CLI tools (opj_compress/decompress).
@@ -68,6 +71,7 @@ cmake -S . -B build -G "Unix Makefiles" \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=OFF \
     -DBUILD_STATIC_LIBS=ON \
+    $CMAKE_CROSS_FLAGS \
     -DBUILD_CODEC=OFF \
     -DBUILD_TESTING=OFF \
     -DBUILD_DOC=OFF \

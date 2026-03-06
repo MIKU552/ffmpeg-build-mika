@@ -59,7 +59,10 @@ rm "$TARBALL"
 cd "$SRC_DIR_NAME" || exit 1
 
 echo "Configuring SoXR..."
-
+CMAKE_CROSS_FLAGS=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CMAKE_CROSS_FLAGS="-DCMAKE_TOOLCHAIN_FILE=$SCRIPT_DIR/mingw64.cmake"
+fi
 # CMake Options:
 # - CMAKE_INSTALL_LIBDIR=lib: Force install to 'lib' (not lib64).
 # - BUILD_SHARED_LIBS=OFF: Static linking.
@@ -70,6 +73,7 @@ cmake -S . -B build -G "Unix Makefiles" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=OFF \
+    $CMAKE_CROSS_FLAGS \
     -DWITH_OPENMP=OFF \
     -DBUILD_TESTS=OFF \
     -DWITH_PVRG=OFF \

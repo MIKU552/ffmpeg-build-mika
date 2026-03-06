@@ -59,13 +59,17 @@ cd "$SRC_DIR_NAME" || exit 1
 # 4. Final Optimized Build
 # ------------------------------------------------------------------------------
 echoSection "Final Optimized Build"
-
+CMAKE_CROSS_FLAGS=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CMAKE_CROSS_FLAGS="-DCMAKE_TOOLCHAIN_FILE=$SCRIPT_DIR/mingw64.cmake"
+fi
 mkdir -p build-final
 # Configure optimized build (LTO enabled, PGO removed)
 cmake -S . -B build-final -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
     -DBUILD_SHARED_LIBS=OFF \
+    $CMAKE_CROSS_FLAGS \
     -DVVDEC_ENABLE_LINK_TIME_OPT=ON
 
 checkStatus $? "Final Config failed"
