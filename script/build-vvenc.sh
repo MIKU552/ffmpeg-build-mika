@@ -96,9 +96,7 @@ if [ "$OS_NAME" = "Darwin" ]; then
     fi
 else
     # Linux (GCC)
-    # ADDED -fprofile-update=atomic to prevent data races and corrupted negative
-    # counters when vvencapp trains using multiple threads.
-    PGO_GEN_FLAGS="-fprofile-generate -fprofile-update=atomic"
+    PGO_GEN_FLAGS="-fprofile-generate"
     PGO_GEN_CFLAGS="$PGO_GEN_FLAGS"
     PGO_GEN_CXXFLAGS="$PGO_GEN_FLAGS"
 fi
@@ -131,7 +129,7 @@ if [ "$ENABLE_PGO" = "YES" ]; then
         for sample in "${SAMPLES[@]}"; do
             echo "Training on $sample..."
             xz -dc "$SAMPLE_DIR/$sample" | \
-            $APP -i - --y4m --preset slow -q 26 --threads "$CPUS" --WaveFrontSynchro=1 -o /dev/null
+            $APP -i - --y4m --preset slow -q 26 --threads "$CPUS" -o /dev/null
             
             if [ ${PIPESTATUS[1]} -ne 0 ]; then
                 echo "ERROR: vvencapp training crashed on $sample!"

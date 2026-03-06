@@ -119,8 +119,6 @@ if [ "$OS_NAME" = "Darwin" ]; then
     fi
 else
     # Linux (GCC)
-    # ADDED -fprofile-update=atomic to prevent data races and corrupted negative
-    # counters when x265 trains using multiple threads.
     PGO_GEN_CFLAGS="-fprofile-generate"
     PGO_GEN_CXXFLAGS="-fprofile-generate"
     
@@ -186,7 +184,6 @@ train_generator() {
                     --y4m \
                     --input - \
                     --output /dev/null \
-                    --frames 30 \
                     --preset veryslow \
                     --crf 28 \
                     --no-info \
@@ -212,7 +209,6 @@ train_generator() {
                         --y4m \
                         --input - \
                         --output /dev/null \
-                        --frames 30 \
                         --preset veryslow \
                         --crf 28 \
                         --no-info \
