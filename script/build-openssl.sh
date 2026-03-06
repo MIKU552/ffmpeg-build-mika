@@ -70,7 +70,7 @@ CROSS_FLAGS=""
 if [ "$TARGET_OS" = "Windows" ]; then
     # 不用 config 瞎猜，直接用 Configure 强行指定 mingw64 目标
     CONFIG_CMD="./Configure"
-    CROSS_FLAGS="mingw64 --cross-compile-prefix=x86_64-w64-mingw32-"
+    CROSS_FLAGS="mingw64"
 fi
 
 # 执行配置 (保留你原有的其他参数，比如 no-shared 等)
