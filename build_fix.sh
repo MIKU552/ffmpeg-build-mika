@@ -200,34 +200,6 @@ fi
 # 5. Environment Variables & Compiler Flags
 # ------------------------------------------------------------------------------
 
-# ==============================================================================
-# Cross-Compilation Toolchain Setup
-# ==============================================================================
-if [ "$TARGET_OS" = "Windows" ]; then
-    echo "======================================================="
-    echo "🚀 ENABLING WINDOWS CROSS-COMPILATION (MinGW-w64)"
-    echo "======================================================="
-    
-    # 劫持所有标准 C/C++ 编译环境变量，指向 MinGW-w64
-    export CC="x86_64-w64-mingw32-gcc"
-    export CXX="x86_64-w64-mingw32-g++"
-    export AR="x86_64-w64-mingw32-ar"
-    export AS="x86_64-w64-mingw32-as"
-    export LD="x86_64-w64-mingw32-ld"
-    export RANLIB="x86_64-w64-mingw32-ranlib"
-    export STRIP="x86_64-w64-mingw32-strip"
-    export NM="x86_64-w64-mingw32-nm"
-    export WINDRES="x86_64-w64-mingw32-windres"
-    
-    # 告诉 pkg-config 我们在做交叉编译，防止它找到 Ubuntu 系统的 Linux 库
-    export PKG_CONFIG_LIBDIR="$TOOL_DIR/lib/pkgconfig"
-    
-    # 后缀设定
-    export EXE_SUFFIX=".exe"
-else
-    export EXE_SUFFIX=""
-fi
-
 echoSection "Setup Build Environment ($OS_NAME)"
 
 # Compiler Setup
@@ -473,6 +445,33 @@ for url in "${DOWNLOAD_URLS[@]}"; do
     fi
 done
 
+# ==============================================================================
+# Cross-Compilation Toolchain Setup
+# ==============================================================================
+if [ "$TARGET_OS" = "Windows" ]; then
+    echo "======================================================="
+    echo "🚀 ENABLING WINDOWS CROSS-COMPILATION (MinGW-w64)"
+    echo "======================================================="
+    
+    # 劫持所有标准 C/C++ 编译环境变量，指向 MinGW-w64
+    export CC="x86_64-w64-mingw32-gcc"
+    export CXX="x86_64-w64-mingw32-g++"
+    export AR="x86_64-w64-mingw32-ar"
+    export AS="x86_64-w64-mingw32-as"
+    export LD="x86_64-w64-mingw32-ld"
+    export RANLIB="x86_64-w64-mingw32-ranlib"
+    export STRIP="x86_64-w64-mingw32-strip"
+    export NM="x86_64-w64-mingw32-nm"
+    export WINDRES="x86_64-w64-mingw32-windres"
+    
+    # 告诉 pkg-config 我们在做交叉编译，防止它找到 Ubuntu 系统的 Linux 库
+    export PKG_CONFIG_LIBDIR="$TOOL_DIR/lib/pkgconfig"
+    
+    # 后缀设定
+    export EXE_SUFFIX=".exe"
+else
+    export EXE_SUFFIX=""
+fi
 
 # ------------------------------------------------------------------------------
 # 7. Dependency Build Execution
