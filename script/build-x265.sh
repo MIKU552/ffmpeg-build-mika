@@ -121,8 +121,8 @@ else
     # Linux (GCC)
     # ADDED -fprofile-update=atomic to prevent data races and corrupted negative
     # counters when x265 trains using multiple threads.
-    PGO_GEN_CFLAGS="-fprofile-generate -fprofile-update=atomic"
-    PGO_GEN_CXXFLAGS="-fprofile-generate -fprofile-update=atomic"
+    PGO_GEN_CFLAGS="-fprofile-generate"
+    PGO_GEN_CXXFLAGS="-fprofile-generate"
     
     PGO_USE_CFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
     PGO_USE_CXXFLAGS="-fprofile-use -Wno-missing-profile -Wno-coverage-mismatch -Wno-error=coverage-mismatch -Wno-alloc-size-larger-than"
@@ -178,36 +178,66 @@ train_generator() {
     local current_dir=$(pwd)
     cd "$dir" || return
     
-    for sample in "${samples[@]}"; do
-        if [ -f "$sample_dir/$sample" ]; then
-            echo "Running x265 training on $sample ($bit_depth-bit)..."
-            
-            # NOTE: We must use strictly valid x265 CLI arguments here.
-            # Removed: --gop-lookahead (not a valid standalone CLI arg)
-            # Removed: =1 suffixes for boolean flags (use --flag instead)
-            # Removed: > /dev/null 2>&1 so we can actually see errors if it crashes!
-            
-            xz -dc "$sample_dir/$sample" | ./x265 \
-                --y4m \
-                --input - \
-                --output /dev/null \
-                --preset veryslow \
-                --crf 28 \
-                --no-info \
-                --rc-lookahead 250 \
-                --open-gop
-                
-            # If x265 crashes, fail loudly
-            if [ ${PIPESTATUS[1]} -ne 0 ]; then
-                echo "ERROR: x265 training crashed on $sample!"
-                exit 1
+    if [ "$OS_NAME" = "Darwin" ]; then
+        for sample in "${samples[@]}"; do
+            if [ -f "$sample_dir/$sample" ]; then
+                echo "Running x265 training on $sample ($bit_depth-bit)..."
+                xz -dc "$sample_dir/$sample" | ./x265 \
+                    --y4m \
+                    --input - \
+                    --output /dev/null \
+                    --frames 30 \
+                    --preset veryslow \
+                    --crf 28 \
+                    --no-info \
+                    --rc-lookahead 250 \
+                    --open-gop
+                    
+                if [ ${PIPESTATUS[1]} -ne 0 ]; then
+                    echo "ERROR: x265 training crashed on $sample!"
+                    exit 1
+                fi
+            else
+                echo "Warning: Sample $sample not found. Skipping."
             fi
-        else
-            echo "Warning: Sample $sample not found in $sample_dir. Skipping."
-        fi
-    done
-    echo "$bit_depth-bit training done."
+        done
+    else
+
+        PIDS=""
+        for sample in "${samples[@]}"; do
+            if [ -f "$sample_dir/$sample" ]; then
+                echo "Running x265 training on $sample ($bit_depth-bit) in background..."
+                (
+                    xz -dc "$sample_dir/$sample" | ./x265 \
+                        --y4m \
+                        --input - \
+                        --output /dev/null \
+                        --frames 30 \
+                        --preset veryslow \
+                        --crf 28 \
+                        --no-info \
+                        --rc-lookahead 250 \
+                        --open-gop \
+                        --pools 1 \
+                        --frame-threads 1
+                        
+                    if [ ${PIPESTATUS[1]} -ne 0 ]; then
+                        echo "ERROR: x265 training crashed on $sample!"
+                        exit 1
+                    fi
+                ) &
+                PIDS="$PIDS $!"
+            else
+                echo "Warning: Sample $sample not found. Skipping."
+            fi
+        done
+        
+        FAIL=0
+        for pid in $PIDS; do wait $pid || let "FAIL+=1"; done
+        if [ "$FAIL" -ne 0 ]; then echo "ERROR: $FAIL training jobs failed!"; exit 1; fi
+    fi
     
+    echo "$bit_depth-bit training done."
     cd "$current_dir" || return
 }
 

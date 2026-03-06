@@ -127,21 +127,37 @@ if [ "$ENABLE_PGO" = "YES" ]; then
     echoSection "PGO Step 2: Training (Custom Encoding Parameters)"
     APP="./install-pgo/bin/vvencapp"
     
-    for sample in "${SAMPLES[@]}"; do
-        echo "Training on $sample..."
+    if [ "$OS_NAME" = "Darwin" ]; then
+        for sample in "${SAMPLES[@]}"; do
+            echo "Training on $sample..."
+            xz -dc "$SAMPLE_DIR/$sample" | \
+            $APP -i - --y4m --preset slow -q 26 --threads "$CPUS" --WaveFrontSynchro=1 -o /dev/null
+            
+            if [ ${PIPESTATUS[1]} -ne 0 ]; then
+                echo "ERROR: vvencapp training crashed on $sample!"
+                exit 1
+            fi
+        done
+    else
+        PIDS=""
+        for sample in "${SAMPLES[@]}"; do
+            echo "Training on $sample in background..."
+            (
+                xz -dc "$SAMPLE_DIR/$sample" | \
+                $APP -i - --y4m --preset slow -q 26 --threads 1 -o /dev/null
+                
+                if [ ${PIPESTATUS[1]} -ne 0 ]; then
+                    echo "ERROR: vvencapp training crashed on $sample!"
+                    exit 1
+                fi
+            ) &
+            PIDS="$PIDS $!"
+        done
         
-        # NOTE: 
-        # 1. Removed `-c WaveFrontSynchro=1` as it causes a parsing error in the latest vvencapp.
-        
-        xz -dc "$SAMPLE_DIR/$sample" | \
-        $APP -i - --y4m --preset slow -q 26 --WaveFrontSynchro=1 -o /dev/null
-        
-        # Fail loudly if it crashes
-        if [ ${PIPESTATUS[1]} -ne 0 ]; then
-            echo "ERROR: vvencapp training crashed on $sample!"
-            exit 1
-        fi
-    done
+        FAIL=0
+        for pid in $PIDS; do wait $pid || let "FAIL+=1"; done
+        if [ "$FAIL" -ne 0 ]; then echo "ERROR: $FAIL VVenC training jobs failed!"; exit 1; fi
+    fi
     
     echoSection "PGO Step 3: Processing Profiles"
     
