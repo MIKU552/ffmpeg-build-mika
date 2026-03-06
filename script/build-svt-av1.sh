@@ -10,6 +10,7 @@
 #   - Supports building from specific Git Commit Hash or Release Tag
 #   - Automated PGO (Profile-Guided Optimization) tailored to custom params
 #   - Robust sample handling (Decompresses samples to avoid CMake pipe errors)
+#   - Windows Cross-Compilation with Wine Emulator Bridge
 # ==============================================================================
 
 # 1. Argument Processing
@@ -59,23 +60,16 @@ rm "$TARBALL"
 
 # 5. Prepare PGO Training Data
 # ------------------------------------------------------------------------------
-# Fix: CMake execute_process fails with pipes ("|"). 
-# Instead of patching CMake to handle pipes, we extract samples to a temporary dir.
-# This guarantees SVT-AV1 can read them natively.
-
 PGO_SAMPLE_DIR="$SOURCE_DIR/svt_pgo_samples"
 mkdir -p "$PGO_SAMPLE_DIR"
 
-# Only prepare samples if we are actually going to run PGO
 SAMPLE_SOURCE_DIR="$SCRIPT_DIR/../sample"
 
 if [ -d "$SAMPLE_SOURCE_DIR" ]; then
     echo "Preparing PGO training samples (Decompressing)..."
-    # Find all .xz files and decompress them to the temp dir
     for f in "$SAMPLE_SOURCE_DIR"/*.xz; do
         if [ -f "$f" ]; then
             filename=$(basename "$f" .xz)
-            # Only decompress if target doesn't exist (save time on re-runs)
             if [ ! -f "$PGO_SAMPLE_DIR/$filename" ]; then
                 echo "Decompressing $filename..."
                 xz -d -c "$f" > "$PGO_SAMPLE_DIR/$filename"
@@ -91,17 +85,15 @@ fi
 PGO_CMAKE_FILE="Build/pgohelper.cmake"
 if [ -f "$PGO_CMAKE_FILE" ]; then
     echo "Applying custom PGO target parameters to $PGO_CMAKE_FILE..."
-    
-    # We forcefully overwrite the default encoding command in the CMake script.
-    # We strip out whatever defaults the SVT-AV1 team put in and inject our 
-    # exact production workload: --preset 2 --lookahead 120 --tune 0
-    # Regex explanation: Matches --preset up to the closing parenthesis ')'
     run_sed 's/--preset[^)]*/--preset 2 --lookahead 120 --tune 0/g' "$PGO_CMAKE_FILE"
 fi
 
-# macOS Specific Configurations
+# Platform Specific Configurations
 OS_NAME=$(uname -s)
 LLVM_PROFDATA_FLAG=""
+CMAKE_CROSS_FLAGS=""
+EXTRA_CFLAGS=""
+EXTRA_LDFLAGS=""
 
 if [ "$OS_NAME" = "Darwin" ]; then
     echo "Applying macOS Clang PGO configurations..."
@@ -116,6 +108,20 @@ if [ "$OS_NAME" = "Darwin" ]; then
             LLVM_PROFDATA_FLAG="-DLLVM_PROFDATA=$XCODE_PATH/Toolchains/XcodeDefault.xctoolchain/usr/bin/llvm-profdata"
         fi
     fi
+elif [ "$TARGET_OS" = "Windows" ]; then
+    echo "Applying Windows MinGW Cross-Compile PGO configurations..."
+    
+    # 核心魔术 1：指定工具链，并设置 CMAKE_CROSSCOMPILING_EMULATOR 为 wine64
+    CMAKE_CROSS_FLAGS="-DCMAKE_TOOLCHAIN_FILE=$SCRIPT_DIR/mingw64.cmake -DCMAKE_CROSSCOMPILING_EMULATOR=wine64"
+    
+    # 核心魔术 2：因为 SVT-AV1 的 RunPGO 内部是由 CMake 多线程自动调度的，
+    # 我们没法像 x265 那样搞目录隔离，所以重新请出 -fprofile-update=atomic 防数据损坏。
+    #EXTRA_CFLAGS="-fprofile-update=atomic"
+    
+    # 核心魔术 3：静态链接 C++ 库，防止 Wine 运行时找不到 MinGW 的 DLL。
+    EXTRA_LDFLAGS="-static"
+    
+    export WINEDEBUG=-all
 fi
 
 # 7. Configure
@@ -125,8 +131,6 @@ cd build || exit 1
 
 echo "Configuring CMake..."
 
-# Notes:
-# - SVT_AV1_PGO_CUSTOM_VIDEOS: Point to the decompressed RAW .y4m folder
 cmake \
     -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
@@ -135,6 +139,10 @@ cmake \
     -DSVT_AV1_LTO=ON \
     -DSVT_AV1_PGO=ON \
     -DSVT_AV1_PGO_CUSTOM_VIDEOS="$PGO_SAMPLE_DIR" \
+    -DCMAKE_C_FLAGS="$EXTRA_CFLAGS" \
+    -DCMAKE_CXX_FLAGS="$EXTRA_CFLAGS" \
+    -DCMAKE_EXE_LINKER_FLAGS="$EXTRA_LDFLAGS" \
+    $CMAKE_CROSS_FLAGS \
     $LLVM_PROFDATA_FLAG \
     ..
 

@@ -31,6 +31,14 @@ fi
 # --- OS Detection ---
 OS_NAME=$(uname -s)
 
+# ------------------------------------------------------------------------------
+# Cross-Compile CMake Setup
+# ------------------------------------------------------------------------------
+CMAKE_CROSS_FLAGS=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CMAKE_CROSS_FLAGS="-DCMAKE_TOOLCHAIN_FILE=$SCRIPT_DIR/mingw64.cmake"
+fi
+
 # 2. Version & Directory Setup
 VERSION_FILE="$SCRIPT_DIR/../version/x265"
 if [ -f "$VERSION_FILE" ]; then
@@ -144,6 +152,7 @@ build_generator() {
     cmake -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
           -DENABLE_SHARED=NO \
           $extra_cmake_flags \
+          $CMAKE_CROSS_FLAGS \
           -DCMAKE_C_FLAGS="$PGO_GEN_CFLAGS" \
           -DCMAKE_CXX_FLAGS="$PGO_GEN_CXXFLAGS" \
           ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
@@ -199,22 +208,28 @@ train_generator() {
             fi
         done
     else
-        # Linux / GCC: Parallel training requires profile data isolation to prevent corruption
+        # =====================================================
+        # 魔术桥接：如果目标是 Windows，使用 wine64 执行 .exe
+        # =====================================================
+        local EXEC_CMD="./x265"
+        if [ "$TARGET_OS" = "Windows" ]; then
+            EXEC_CMD="wine64 ./x265.exe"
+            export WINEDEBUG=-all # 关闭 Wine 烦人的调试输出
+        fi
+
+        # Linux / GCC: Parallel training requires profile data isolation
         PIDS=""
-        # We need an index to create unique directories
         local i=0
         for sample in "${samples[@]}"; do
             if [ -f "$sample_dir/$sample" ]; then
                 echo "Running x265 training on $sample ($bit_depth-bit) in background..."
                 (
-                    # CRITICAL FIX for GCC PGO Corruption:
-                    # Isolate the .gcda output for each parallel process using GCOV_PREFIX
-                    # GCOV_PREFIX_STRIP removes the absolute path prefix so it builds relative to GCOV_PREFIX
                     export GCOV_PREFIX="$(pwd)/pgo_data_$i"
                     export GCOV_PREFIX_STRIP=0
                     mkdir -p "$GCOV_PREFIX"
 
-                    xz -dc "$sample_dir/$sample" | ./x265 \
+                    # 这里把原来的 ./x265 替换成了 $EXEC_CMD
+                    xz -dc "$sample_dir/$sample" | $EXEC_CMD \
                         --y4m \
                         --input - \
                         --output /dev/null \
@@ -350,6 +365,7 @@ build_final() {
               -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
               -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
               $extra_flags \
+              $CMAKE_CROSS_FLAGS \
               -DCMAKE_C_FLAGS="$gcc_use_cflags" \
               -DCMAKE_CXX_FLAGS="$gcc_use_cxxflags" \
               ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
@@ -361,6 +377,7 @@ build_final() {
               -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
               -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
               $extra_flags \
+              $CMAKE_CROSS_FLAGS \
               -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
               -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
               ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
@@ -392,7 +409,7 @@ if [ "$SKIP_X265_MULTIBIT" = "NO" ]; then
     
     if [ "$OS_NAME" = "Linux" ]; then
         echo "Using GNU 'ar' script for merging..."
-        ar -M <<EOF
+        ${AR:-ar} -M <<EOF
 CREATE libx265.a
 ADDLIB libx265_8bit.a
 ADDLIB libx265_10bit.a

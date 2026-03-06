@@ -40,6 +40,14 @@ fi
 
 OS_NAME=$(uname -s)
 
+# ------------------------------------------------------------------------------
+# Cross-Compile CMake Setup
+# ------------------------------------------------------------------------------
+CMAKE_CROSS_FLAGS=""
+if [ "$TARGET_OS" = "Windows" ]; then
+    CMAKE_CROSS_FLAGS="-DCMAKE_TOOLCHAIN_FILE=$SCRIPT_DIR/mingw64.cmake"
+fi
+
 # Prepare Source Directory
 TARGET_SRC_DIR="$SOURCE_DIR/vvenc"
 mkdir -p "$TARGET_SRC_DIR"
@@ -113,6 +121,7 @@ if [ "$ENABLE_PGO" = "YES" ]; then
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$(pwd)/install-pgo" \
         -DBUILD_SHARED_LIBS=OFF \
+        $CMAKE_CROSS_FLAGS \
         -DCMAKE_C_FLAGS="$PGO_GEN_CFLAGS" \
         -DCMAKE_CXX_FLAGS="$PGO_GEN_CXXFLAGS"
         
@@ -124,7 +133,10 @@ if [ "$ENABLE_PGO" = "YES" ]; then
     
     echoSection "PGO Step 2: Training (Custom Encoding Parameters)"
     APP="./install-pgo/bin/vvencapp"
-    
+    if [ "$TARGET_OS" = "Windows" ]; then
+        APP="wine64 ./install-pgo/bin/vvencapp.exe"
+        export WINEDEBUG=-all
+    fi
     if [ "$OS_NAME" = "Darwin" ]; then
         for sample in "${SAMPLES[@]}"; do
             echo "Training on $sample..."
@@ -219,6 +231,7 @@ cmake -S . -B $FINAL_BUILD_DIR -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$TOOL_DIR" \
     -DBUILD_SHARED_LIBS=OFF \
+    $CMAKE_CROSS_FLAGS \
     -DVVENC_ENABLE_LINK_TIME_OPT=ON \
     -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
     -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS"
