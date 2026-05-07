@@ -337,6 +337,7 @@ jobs:
     name: Publish Release
     runs-on: ubuntu-24.04
     needs: [build-linux, build-macos]
+    if: ${{ github.event_name != 'pull_request' }}
     
     steps:
       - name: Checkout (Sparse)

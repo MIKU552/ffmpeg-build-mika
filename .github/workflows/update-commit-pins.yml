@@ -1,0 +1,83 @@
+name: Update Commit Pins
+
+on:
+  schedule:
+    # GitHub Actions cron uses UTC. This is Monday 04:00 in Asia/Shanghai.
+    - cron: "0 20 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+env:
+  BUILD_WORKFLOW: build-ffmpeg-multiplatform.yml
+  BASE_BRANCH: MIX
+  UPDATE_BRANCH: auto/commit-pins
+  # Optional: set this secret to a PAT if your branch protection rules do not
+  # allow GITHUB_TOKEN to push the update branch.
+  WORKFLOW_TRIGGER_TOKEN: ${{ secrets.WORKFLOW_TRIGGER_TOKEN }}
+
+jobs:
+  update-commit-pins:
+    name: Check and Update Commit Pins
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+          ref: ${{ env.BASE_BRANCH }}
+          token: ${{ secrets.WORKFLOW_TRIGGER_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Prepare Update Branch
+        id: branch
+        run: |
+          git fetch origin "${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}"
+
+          if git ls-remote --exit-code --heads origin "$UPDATE_BRANCH" >/dev/null 2>&1; then
+            echo "Using existing update branch: $UPDATE_BRANCH"
+            git fetch origin "${UPDATE_BRANCH}:refs/remotes/origin/${UPDATE_BRANCH}"
+            git switch -C "$UPDATE_BRANCH" "refs/remotes/origin/${UPDATE_BRANCH}"
+            git rebase "refs/remotes/origin/${BASE_BRANCH}"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Creating update branch from $BASE_BRANCH: $UPDATE_BRANCH"
+            git switch -C "$UPDATE_BRANCH" "refs/remotes/origin/${BASE_BRANCH}"
+            echo "created=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check Commit-Pinned Dependencies
+        id: pins
+        run: |
+          chmod +x script/update-commit-pins.sh
+          script/update-commit-pins.sh
+
+      - name: Stop When Nothing Changed
+        if: ${{ steps.pins.outputs.has_updates != 'true' }}
+        run: echo "No commit-pinned dependencies changed."
+
+      - name: Push Initial Update Branch
+        if: ${{ steps.pins.outputs.has_updates != 'true' && steps.branch.outputs.created == 'true' }}
+        run: |
+          git push origin "HEAD:${UPDATE_BRANCH}"
+
+      - name: Commit and Push Updates
+        if: ${{ steps.pins.outputs.has_updates == 'true' }}
+        env:
+          UPDATE_DETAILS: ${{ steps.pins.outputs.updates }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version
+          git commit -m "chore: update codec commit pins" -m "$UPDATE_DETAILS"
+          git push --force-with-lease origin "HEAD:${UPDATE_BRANCH}"
+
+      - name: Trigger Build Workflow
+        if: ${{ steps.pins.outputs.has_updates == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run "$BUILD_WORKFLOW" --ref "$UPDATE_BRANCH"
