@@ -35,6 +35,7 @@ jobs:
           echo "  event:      $RUN_EVENT"
           echo "  branch:     $RUN_BRANCH"
           echo "  url:        $RUN_URL"
+          echo "run_url=$RUN_URL" >> "$GITHUB_OUTPUT"
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "should_open_pr=true" >> "$GITHUB_OUTPUT"
@@ -50,25 +51,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_URL: ${{ steps.trigger.outputs.run_url }}
         run: |
           set -euo pipefail
 
           BODY_FILE="$(mktemp)"
           if [ -n "$RUN_URL" ]; then
             cat > "$BODY_FILE" <<EOF
-Automated codec commit pins were updated, built, and released successfully.
+          Automated codec commit pins were updated, built, and released successfully.
 
-Successful build workflow: $RUN_URL
+          Successful build workflow: $RUN_URL
 
-Review and merge this PR to sync the validated pins back into MIX.
-EOF
+          Review and merge this PR to sync the validated pins back into MIX.
+          EOF
           else
             cat > "$BODY_FILE" <<EOF
-Automated codec commit pins are ready to sync back into MIX.
+          Automated codec commit pins are ready to sync back into MIX.
 
-Review and merge this PR after confirming the latest build completed successfully.
-EOF
+          Review and merge this PR after confirming the latest build completed successfully.
+          EOF
           fi
 
           EXISTING_PR="$(gh pr list \
