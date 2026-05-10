@@ -35,17 +35,20 @@ jobs:
       - name: Prepare Update Branch
         id: branch
         run: |
-          git fetch origin "${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin "$BASE_BRANCH"
 
           if git ls-remote --exit-code --heads origin "$UPDATE_BRANCH" >/dev/null 2>&1; then
             echo "Using existing update branch: $UPDATE_BRANCH"
-            git fetch origin "${UPDATE_BRANCH}:refs/remotes/origin/${UPDATE_BRANCH}"
-            git switch -C "$UPDATE_BRANCH" "refs/remotes/origin/${UPDATE_BRANCH}"
-            git rebase "refs/remotes/origin/${BASE_BRANCH}"
+            git fetch origin "$UPDATE_BRANCH"
+            git switch -C "$UPDATE_BRANCH" "origin/$UPDATE_BRANCH"
+            git rebase "origin/$BASE_BRANCH"
             echo "created=false" >> "$GITHUB_OUTPUT"
           else
             echo "Creating update branch from $BASE_BRANCH: $UPDATE_BRANCH"
-            git switch -C "$UPDATE_BRANCH" "refs/remotes/origin/${BASE_BRANCH}"
+            git switch -C "$UPDATE_BRANCH" "origin/$BASE_BRANCH"
             echo "created=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -69,8 +72,6 @@ jobs:
         env:
           UPDATE_DETAILS: ${{ steps.pins.outputs.updates }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add version
           git commit -m "chore: update codec commit pins" -m "$UPDATE_DETAILS"
           git push --force-with-lease origin "HEAD:${UPDATE_BRANCH}"
