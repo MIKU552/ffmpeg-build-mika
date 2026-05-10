@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows: ["FFmpeg Multi-Platform CI"]
     types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,10 +18,35 @@ jobs:
   open-pr:
     name: Open PR for Validated Commit Pins
     runs-on: ubuntu-24.04
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_dispatch' && github.event.workflow_run.head_branch == 'auto/commit-pins' }}
 
     steps:
+      - name: Inspect Triggering Workflow
+        id: trigger
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion || '' }}
+          RUN_EVENT: ${{ github.event.workflow_run.event || '' }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch || '' }}
+          RUN_URL: ${{ github.event.workflow_run.html_url || '' }}
+        run: |
+          echo "Trigger context:"
+          echo "  event name:  $EVENT_NAME"
+          echo "  conclusion: $RUN_CONCLUSION"
+          echo "  event:      $RUN_EVENT"
+          echo "  branch:     $RUN_BRANCH"
+          echo "  url:        $RUN_URL"
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "should_open_pr=true" >> "$GITHUB_OUTPUT"
+          elif [ "$RUN_CONCLUSION" = "success" ] && [ "$RUN_BRANCH" = "$UPDATE_BRANCH" ]; then
+            echo "should_open_pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_open_pr=false" >> "$GITHUB_OUTPUT"
+            echo "This workflow run is not a successful build from $UPDATE_BRANCH; no PR will be opened."
+          fi
+
       - name: Create or Update Pull Request
+        if: ${{ steps.trigger.outputs.should_open_pr == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -29,13 +55,21 @@ jobs:
           set -euo pipefail
 
           BODY_FILE="$(mktemp)"
-          cat > "$BODY_FILE" <<EOF
-          Automated codec commit pins were updated, built, and released successfully.
+          if [ -n "$RUN_URL" ]; then
+            cat > "$BODY_FILE" <<EOF
+Automated codec commit pins were updated, built, and released successfully.
 
-          Successful build workflow: $RUN_URL
+Successful build workflow: $RUN_URL
 
-          Review and merge this PR to sync the validated pins back into MIX.
-          EOF
+Review and merge this PR to sync the validated pins back into MIX.
+EOF
+          else
+            cat > "$BODY_FILE" <<EOF
+Automated codec commit pins are ready to sync back into MIX.
+
+Review and merge this PR after confirming the latest build completed successfully.
+EOF
+          fi
 
           EXISTING_PR="$(gh pr list \
             --repo "$REPO" \
