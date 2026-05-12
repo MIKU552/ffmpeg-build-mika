@@ -10,12 +10,18 @@ on:
     branches: [ "MIX" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 # ==============================================================================
 # Global Environment Variables
 # ==============================================================================
 env:
   CARGO_C_VERSION: "0.10.20"  # Global cargo-c version
   RUST_TOOLCHAIN: "stable"    # Rust toolchain version
+  BASE_BRANCH: MIX
+  UPDATE_BRANCH: auto/commit-pins
 
 jobs:
 
@@ -385,3 +391,54 @@ jobs:
             artifacts/macos-archive/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  # ============================================================================
+  # Job 4: Open PR for Validated Commit Pins
+  # ============================================================================
+  open-commit-pins-pr:
+    name: Open Commit Pin PR
+    runs-on: ubuntu-24.04
+    needs: create-release
+    if: ${{ github.event_name != 'pull_request' && github.ref_name == 'auto/commit-pins' && needs.create-release.result == 'success' }}
+
+    steps:
+      - name: Create or Update Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          BODY_FILE="$(mktemp)"
+          {
+            printf '%s\n' "Automated codec commit pins were updated, built, and released successfully."
+            printf '\n'
+            printf '%s\n' "Successful build workflow: $RUN_URL"
+            printf '\n'
+            printf '%s\n' "Review and merge this PR to sync the validated pins back into $BASE_BRANCH."
+          } > "$BODY_FILE"
+
+          EXISTING_PR="$(gh pr list \
+            --repo "$REPO" \
+            --head "$UPDATE_BRANCH" \
+            --base "$BASE_BRANCH" \
+            --state open \
+            --json number \
+            --jq '.[0].number // ""')"
+
+          if [ -n "$EXISTING_PR" ]; then
+            gh pr edit "$EXISTING_PR" \
+              --repo "$REPO" \
+              --title "chore: sync validated codec commit pins" \
+              --body-file "$BODY_FILE"
+            echo "Updated pull request #$EXISTING_PR."
+          else
+            gh pr create \
+              --repo "$REPO" \
+              --base "$BASE_BRANCH" \
+              --head "$UPDATE_BRANCH" \
+              --title "chore: sync validated codec commit pins" \
+              --body-file "$BODY_FILE"
+          fi

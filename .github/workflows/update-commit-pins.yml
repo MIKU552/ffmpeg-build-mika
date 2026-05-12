@@ -39,18 +39,25 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git fetch origin "$BASE_BRANCH"
+          needs_push="false"
 
           if git ls-remote --exit-code --heads origin "$UPDATE_BRANCH" >/dev/null 2>&1; then
             echo "Using existing update branch: $UPDATE_BRANCH"
             git fetch origin "$UPDATE_BRANCH"
             git switch -C "$UPDATE_BRANCH" "origin/$UPDATE_BRANCH"
             git rebase "origin/$BASE_BRANCH"
+            if [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/$UPDATE_BRANCH")" ]; then
+              needs_push="true"
+            fi
             echo "created=false" >> "$GITHUB_OUTPUT"
           else
             echo "Creating update branch from $BASE_BRANCH: $UPDATE_BRANCH"
             git switch -C "$UPDATE_BRANCH" "origin/$BASE_BRANCH"
+            needs_push="true"
             echo "created=true" >> "$GITHUB_OUTPUT"
           fi
+
+          echo "needs_push=$needs_push" >> "$GITHUB_OUTPUT"
 
       - name: Check Commit-Pinned Dependencies
         id: pins
@@ -62,10 +69,10 @@ jobs:
         if: ${{ steps.pins.outputs.has_updates != 'true' }}
         run: echo "No commit-pinned dependencies changed."
 
-      - name: Push Initial Update Branch
-        if: ${{ steps.pins.outputs.has_updates != 'true' && steps.branch.outputs.created == 'true' }}
+      - name: Push Rebased Update Branch
+        if: ${{ steps.pins.outputs.has_updates != 'true' && steps.branch.outputs.needs_push == 'true' }}
         run: |
-          git push origin "HEAD:${UPDATE_BRANCH}"
+          git push --force-with-lease origin "HEAD:${UPDATE_BRANCH}"
 
       - name: Commit and Push Updates
         if: ${{ steps.pins.outputs.has_updates == 'true' }}
