@@ -76,7 +76,7 @@ cd "$FFMPEG_SRC_DIR" || exit 1
 if [ "$SKIP_VVDEC_PATCH" = "NO" ]; then
     echoSection "Applying VVDec Patch"
     PATCH_FILE="libvvdec.patch"
-    PATCH_URL="https://raw.githubusercontent.com/wiki/fraunhoferhhi/vvdec/data/patch/v6-0001-avcodec-add-external-dec-libvvdec-for-H266-VVC.patch"
+    PATCH_URL="https://raw.githubusercontent.com/wiki/fraunhoferhhi/vvdec/data/patch/v9-libvvdec.patch"
     
     if [ ! -f "$PATCH_FILE" ]; then
         download "$PATCH_URL" "$PATCH_FILE"
