@@ -384,10 +384,10 @@ mkdir -p "$SAMPLE_DIR"
 echoSection "Downloading PGO sample files to $SAMPLE_DIR"
 
 DOWNLOAD_URLS=(
-    "https://driveshare.miku552.top/0:/dev/ffbuild/4k_bbb.y4m.xz"
-    "https://driveshare.miku552.top/0:/dev/ffbuild/720p_bbb.y4m.xz"
-    "https://driveshare.miku552.top/0:/dev/ffbuild/stefan_sif.y4m.xz"
-    "https://driveshare.miku552.top/0:/dev/ffbuild/taikotemoto.y4m.xz"
+    "https://huggingface.co/datasets/miku552/ffmpeg-build-mika-pgosamples/resolve/main/4k_bbb.y4m.xz"
+    "https://huggingface.co/datasets/miku552/ffmpeg-build-mika-pgosamples/resolve/main/720p_bbb.y4m.xz"
+    "https://huggingface.co/datasets/miku552/ffmpeg-build-mika-pgosamples/resolve/main/stefan_sif.y4m.xz"
+    "https://huggingface.co/datasets/miku552/ffmpeg-build-mika-pgosamples/resolve/main/taikotemoto.y4m.xz"
 )
 
 FAKE_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
