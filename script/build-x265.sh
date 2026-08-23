@@ -30,6 +30,12 @@ fi
 
 # --- OS Detection ---
 OS_NAME=$(uname -s)
+ARCH_NAME=$(uname -m)
+
+# Extra CMake arguments required for native Apple Silicon builds. On Apple
+# platforms x265 prefers CMAKE_OSX_ARCHITECTURES for target detection, but that
+# variable is not populated reliably unless it is set before project().
+X265_ARCH_CMAKE_FLAGS=()
 
 # 2. Version & Directory Setup
 VERSION_FILE="$SCRIPT_DIR/../version/x265"
@@ -88,6 +94,16 @@ cmake_minimum_required(VERSION 3.10)
         run_sed '/cmake_minimum_required(VERSION 3.10)/a \
 cmake_policy(SET CMP0069 NEW)
 ' "$CMAKE_FILE"
+
+        if [[ "$ARCH_NAME" == "arm64" || "$ARCH_NAME" == "aarch64" ]]; then
+            echo "Enabling ARM64/NEON primitives for Apple Silicon..."
+            X265_ARCH_CMAKE_FLAGS=(
+                "-DCMAKE_OSX_ARCHITECTURES=arm64"
+                "-DCMAKE_SYSTEM_PROCESSOR=arm64"
+                "-DENABLE_NEON=ON"
+                "-DENABLE_ASSEMBLY=ON"
+            )
+        fi
     fi
 else
     echo "ERROR: $CMAKE_FILE not found."
@@ -143,12 +159,13 @@ build_generator() {
     # shellcheck disable=SC2086
     cmake -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
           -DENABLE_SHARED=NO \
+          "${X265_ARCH_CMAKE_FLAGS[@]}" \
           $extra_cmake_flags \
           -DCMAKE_C_FLAGS="$PGO_GEN_CFLAGS" \
           -DCMAKE_CXX_FLAGS="$PGO_GEN_CXXFLAGS" \
           ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
           ../source
-          
+
     checkStatus $? "$bit_depth-bit generator config failed"
     make -j "$CPUS"
     checkStatus $? "$bit_depth-bit generator build failed"
@@ -349,6 +366,7 @@ build_final() {
         cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
               -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
               -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
+              "${X265_ARCH_CMAKE_FLAGS[@]}" \
               $extra_flags \
               -DCMAKE_C_FLAGS="$gcc_use_cflags" \
               -DCMAKE_CXX_FLAGS="$gcc_use_cxxflags" \
@@ -360,13 +378,14 @@ build_final() {
         cmake -DCMAKE_INSTALL_PREFIX:PATH="$TOOL_DIR" \
               -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
               -DENABLE_SHARED=NO -DENABLE_CLI=OFF \
+              "${X265_ARCH_CMAKE_FLAGS[@]}" \
               $extra_flags \
               -DCMAKE_C_FLAGS="$PGO_USE_CFLAGS" \
               -DCMAKE_CXX_FLAGS="$PGO_USE_CXXFLAGS" \
               ${NASM_FLAGS:+-DCMAKE_ASM_NASM_FLAGS="$NASM_FLAGS"} \
               ../source
     fi
-          
+
     checkStatus $? "$bit_depth-bit final config failed"
     make -j "$CPUS"
     checkStatus $? "$bit_depth-bit final build failed"
@@ -450,3 +469,4 @@ else
 fi
 
 echoSection "x265 Build Complete"
+
